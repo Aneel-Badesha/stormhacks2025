@@ -19,5 +19,8 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "react-native-nfc-manager": "^3.17.1"
   }
 }
