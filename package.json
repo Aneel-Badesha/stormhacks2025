@@ -1,5 +1,23 @@
 {
-  "dependencies": {
-    "react-native-nfc-manager": "^3.17.1"
+  "name": "nfc-loyalty-app",
+  "version": "1.0.0",
+  "description": "NFC-based digital loyalty card system for small businesses",
+  "private": true,
+  "workspaces": [
+    "mobile",
+    "backend",
+    "admin-dashboard"
+  ],
+  "scripts": {
+    "mobile": "cd mobile && npm start",
+    "backend": "cd backend && npm run dev",
+    "admin": "cd admin-dashboard && npm run dev",
+    "install-all": "npm install && npm run install-mobile && npm run install-backend && npm run install-admin",
+    "install-mobile": "cd mobile && npm install",
+    "install-backend": "cd backend && npm install",
+    "install-admin": "cd admin-dashboard && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }
