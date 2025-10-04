@@ -1,5 +1,6 @@
 // admin/admin.js
 let merchantId = null;
+let usersCache = [];
 
 init();
 
@@ -39,6 +40,8 @@ async function init() {
   };
   document.getElementById('createTag').addEventListener('submit', onCreateTag);
   document.getElementById('filterScans').addEventListener('click', () => loadScans());
+  const userSearch = document.getElementById('userSearch');
+  if (userSearch) userSearch.addEventListener('input', () => renderUsers(userSearch.value.trim()));
 }
 
 async function loadDashboard() {
@@ -51,14 +54,6 @@ async function loadDashboard() {
   const rows = (scans || []).filter(r => r.tags.merchant_id === merchantId);
   document.getElementById('kpi-scans').textContent = rows.length;
   document.getElementById('kpi-users').textContent = new Set(rows.map(r => r.user_id)).size;
-
-  // Redemptions today
-  const { count: redCnt } = await supa
-    .from('redemptions')
-    .select('id', { count: 'exact', head: true })
-    .eq('merchant_id', merchantId)
-    .gte('redeemed_at', `${today}T00:00:00Z`);
-  document.getElementById('kpi-redeem').textContent = redCnt ?? 0;
 }
 
 async function loadTags() {
@@ -96,12 +91,51 @@ async function loadUsers() {
     .eq('merchant_id', merchantId);
 
   if (error) return alert(error.message);
+  const rows = data || [];
+
+  // Fetch profile details for emails/phones
+  const ids = [...new Set(rows.map(r => r.user_id))];
+  let profileMap = new Map();
+  if (ids.length) {
+    // Try email + phone; fallback to email-only if column missing
+    let profSel = 'id, email, phone';
+    let profRes = await supa.from('profiles').select(profSel).in('id', ids);
+    if (profRes.error) {
+      profSel = 'id, email';
+      profRes = await supa.from('profiles').select(profSel).in('id', ids);
+    }
+    (profRes.data || []).forEach(p => profileMap.set(p.id, p));
+  }
+
+  usersCache = rows.map(r => ({
+    ...r,
+    email: profileMap.get(r.user_id)?.email || '-',
+    phone: profileMap.get(r.user_id)?.phone || '-'
+  }));
+
+  renderUsers(document.getElementById('userSearch')?.value?.trim() || '');
+}
+
+function renderUsers(query) {
   const tbody = document.querySelector('#usersTable tbody');
+  if (!tbody) return;
+  const q = (query || '').toLowerCase();
+  const filtered = usersCache.filter(u => {
+    if (!q) return true;
+    return (
+      String(u.user_id).toLowerCase().includes(q) ||
+      String(u.email).toLowerCase().includes(q) ||
+      String(u.phone).toLowerCase().includes(q)
+    );
+  });
+
   tbody.innerHTML = '';
-  (data || []).forEach(r => {
+  filtered.forEach(r => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${r.user_id}</td>
+      <td class="center">${r.email}</td>
+      <td class="center">${r.phone}</td>
       <td class="center">${r.count}</td>
       <td class="center">${r.reward_every}</td>
       <td class="right">${r.last_scan_at ?? '-'}</td>`;

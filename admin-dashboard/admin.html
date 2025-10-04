@@ -2,65 +2,90 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Loyalty Admin</title>
   <link rel="stylesheet" href="./app.css" />
 </head>
 <body>
   <aside class="sidebar">
-    <h2 id="merchantName">Loyalty Admin</h2>
+    <h2>Loyalty Admin</h2>
     <nav>
       <a href="#dashboard">Dashboard</a>
       <a href="#tags">Tags</a>
       <a href="#users">Users</a>
       <a href="#scans">Scans</a>
     </nav>
-    <button id="signout">Sign out</button>
+    <button id="signout" class="signout ghost">Sign out</button>
   </aside>
 
   <main>
-    <section id="dashboard" class="panel">
-      <h3>Dashboard</h3>
-      <div class="kpis">
-        <div class="kpi"><div class="kpi-label">Scans Today</div><div id="kpi-scans">0</div></div>
-        <div class="kpi"><div class="kpi-label">Unique Users</div><div id="kpi-users">0</div></div>
-        <div class="kpi"><div class="kpi-label">Redemptions Today</div><div id="kpi-redeem">0</div></div>
-      </div>
-    </section>
+    <div class="container">
+      <section class="panel" id="top">
+        <h3 id="merchantName">Merchant Admin</h3>
+      </section>
 
-    <section id="tags" class="panel">
-      <div class="row space-between">
-        <h3>Tags</h3>
-        <form id="createTag" class="row">
-          <input id="tagId" placeholder="TAG_ID (T-001)" />
-          <input id="locId" placeholder="Location ID (L1)" />
-          <button>Add Tag</button>
-        </form>
-      </div>
-      <table id="tagsTable"><thead><tr>
-        <th>Tag</th><th>Location</th><th>Status</th><th></th>
-      </tr></thead><tbody></tbody></table>
-    </section>
-
-    <section id="users" class="panel">
-      <h3>Users</h3>
-      <table id="usersTable"><thead><tr>
-        <th>User</th><th>Count</th><th>Reward Every</th><th>Last Scan</th>
-      </tr></thead><tbody></tbody></table>
-    </section>
-
-    <section id="scans" class="panel">
-      <div class="row space-between">
-        <h3>Scans</h3>
-        <div class="row">
-          <input id="dateFrom" type="date" />
-          <input id="dateTo" type="date" />
-          <button id="filterScans">Filter</button>
+      <!-- Dashboard (minimal KPIs) -->
+      <section id="dashboard" class="panel">
+        <h3>Dashboard</h3>
+        <div class="kpis">
+          <div class="kpi"><div class="kpi-label">Scans Today</div><strong id="kpi-scans">0</strong></div>
+          <div class="kpi"><div class="kpi-label">Unique Users</div><strong id="kpi-users">0</strong></div>
         </div>
-      </div>
-      <table id="scansTable"><thead><tr>
-        <th>Time</th><th>User</th><th>Tag</th><th>Status</th><th>Reason</th>
-      </tr></thead><tbody></tbody></table>
-    </section>
+      </section>
+
+      <!-- Tags -->
+      <section id="tags" class="panel">
+        <div class="space-between">
+          <h3>Tags</h3>
+          <form id="createTag" class="row">
+            <input id="tagId" placeholder="TAG_ID (T-001)" />
+            <input id="locId" placeholder="Location ID (L1)" />
+            <button>Add Tag</button>
+          </form>
+        </div>
+        <table id="tagsTable">
+          <thead><tr><th>Tag</th><th>Location</th><th>Status</th><th></th></tr></thead>
+          <tbody><!-- rows injected --></tbody>
+        </table>
+      </section>
+
+      <!-- Users -->
+      <section id="users" class="panel">
+        <div class="space-between">
+          <h3>Users</h3>
+          <input id="userSearch" placeholder="Search users by email, phone or ID" />
+        </div>
+        <table id="usersTable">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Count</th>
+              <th>Reward Every</th>
+              <th>Last Scan</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <!-- Scans -->
+      <section id="scans" class="panel">
+        <div class="space-between">
+          <h3>Scans</h3>
+          <div class="row">
+            <input id="dateFrom" type="date" />
+            <input id="dateTo" type="date" />
+            <button id="filterScans">Filter</button>
+          </div>
+        </div>
+        <table id="scansTable">
+          <thead><tr><th>Time</th><th>User</th><th>Tag</th><th>Status</th><th>Reason</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </div>
   </main>
 
   <script src="./config.js"></script>
