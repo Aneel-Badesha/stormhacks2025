@@ -7,3 +7,4 @@ node_modules/
 .expo-shared/
 dist/
 web-build/
+admin-dashboard/config.js
