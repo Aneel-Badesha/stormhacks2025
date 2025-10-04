@@ -1,0 +1,21 @@
+body{font-family:system-ui,sans-serif;margin:0;color:#111}
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:240px;padding:16px;border-right:1px solid #eee;background:#0f172a;color:#fff}
+.sidebar h2{margin:0 0 12px 0}
+.sidebar nav{display:grid;gap:8px;margin:12px 0}
+.sidebar a{color:#cbd5e1;text-decoration:none}
+.sidebar a:hover{color:#fff}
+main{margin-left:240px;padding:24px}
+.panel{margin-bottom:32px}
+.card{max-width:360px;margin:12vh auto;padding:24px;border:1px solid #eee;border-radius:12px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.kpi{border:1px solid #eee;border-radius:12px;padding:12px}
+.kpi-label{font-size:12px;color:#666}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px;border-top:1px solid #eee}
+.center{text-align:center}.right{text-align:right}
+.row{display:flex;gap:8px;align-items:center}
+.space-between{justify-content:space-between}
+input,button{padding:8px}
+button{background:#111;color:#fff;border:0;border-radius:8px;cursor:pointer}
+button.danger{background:#fee2e2;color:#b91c1c}
+.err{color:#b91c1c}
