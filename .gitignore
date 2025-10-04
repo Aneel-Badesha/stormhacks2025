@@ -1,1 +1,9 @@
-node_modules
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
