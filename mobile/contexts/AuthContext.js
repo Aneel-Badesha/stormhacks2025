@@ -8,26 +8,35 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [flaskSynced, setFlaskSynced] = useState(false);
 
   // Sync user with Flask backend after Supabase auth
   const syncWithFlask = async (supabaseUser) => {
-    if (!supabaseUser) return;
+    if (!supabaseUser) {
+      setFlaskSynced(false);
+      return;
+    }
     
     try {
       const { data, error } = await apiService.request('/api/mobile/auth/sync-user', {
         method: 'POST',
         body: JSON.stringify({
           email: supabaseUser.email,
-          phone: supabaseUser.phone,
+          phone: supabaseUser.user_metadata?.phone_number || '',
           full_name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || '',
         }),
       });
       
       if (!error) {
         console.log('User synced with Flask backend:', data);
+        setFlaskSynced(true);
+      } else {
+        console.error('Flask sync error:', error);
+        setFlaskSynced(false);
       }
     } catch (error) {
       console.error('Error syncing with Flask:', error);
+      setFlaskSynced(false);
     }
   };
 
@@ -78,9 +87,10 @@ export const AuthProvider = ({ children }) => {
       
       if (error) throw error;
 
-      // Note: User profile will be created automatically by database trigger
-      // If you haven't set up the trigger, you'll need to create the profile manually
-      // after the user confirms their email
+      // Immediately sync with Flask backend (don't wait for email verification)
+      if (data.user) {
+        await syncWithFlask(data.user);
+      }
 
       return { data, error: null };
     } catch (error) {
@@ -126,6 +136,7 @@ export const AuthProvider = ({ children }) => {
     user,
     session,
     loading,
+    flaskSynced,
     signUp,
     signInWithEmail,
     signInWithPhone,

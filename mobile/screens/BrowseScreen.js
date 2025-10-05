@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,24 +7,51 @@ import {
   FlatList,
   TouchableOpacity,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import ProgramDetailsScreen from './ProgramDetailsScreen';
-import { ALL_PROGRAMS } from '../data/mockData';
+import { apiService } from '../lib/api';
 
 export default function BrowseScreen({ visible, onClose, userCards, onAddCard }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredPrograms, setFilteredPrograms] = useState(ALL_PROGRAMS);
+  const [allPrograms, setAllPrograms] = useState([]);
+  const [filteredPrograms, setFilteredPrograms] = useState([]);
   const [detailsVisible, setDetailsVisible] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch programs from API
+  useEffect(() => {
+    if (visible) {
+      loadPrograms();
+    }
+  }, [visible]);
+
+  const loadPrograms = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await apiService.getPrograms();
+      if (!error && data?.companies) {
+        setAllPrograms(data.companies);
+        setFilteredPrograms(data.companies);
+      } else {
+        console.error('Error loading programs:', error);
+      }
+    } catch (error) {
+      console.error('Error loading programs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = (text) => {
     setSearchQuery(text);
     if (text.trim() === '') {
-      setFilteredPrograms(ALL_PROGRAMS);
+      setFilteredPrograms(allPrograms);
     } else {
-      const filtered = ALL_PROGRAMS.filter((program) =>
+      const filtered = allPrograms.filter((program) =>
         program.name.toLowerCase().includes(text.toLowerCase()) ||
         program.category.toLowerCase().includes(text.toLowerCase())
       );
@@ -33,7 +60,9 @@ export default function BrowseScreen({ visible, onClose, userCards, onAddCard })
   };
 
   const isCardAdded = (programId) => {
-    return userCards?.some(card => card.id === programId);
+    // Check by comparing program name since card.id is the reward ID, not company ID
+    const program = allPrograms.find(p => p.id === programId);
+    return userCards?.some(card => card.name === program?.name);
   };
 
   const renderProgram = ({ item }) => (
@@ -86,15 +115,22 @@ export default function BrowseScreen({ visible, onClose, userCards, onAddCard })
           onChangeText={handleSearch}
         />
 
-        <FlatList
-          data={filteredPrograms}
-          renderItem={renderProgram}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No programs found</Text>
-          }
-        />
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Loading programs...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredPrograms}
+            renderItem={renderProgram}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No programs found</Text>
+            }
+          />
+        )}
       </View>
       <ProgramDetailsScreen
         visible={detailsVisible}
@@ -206,5 +242,17 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     marginTop: SPACING.xl,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: SPACING.xl * 2,
+  },
+  loadingText: {
+    marginTop: SPACING.md,
+    fontSize: 16,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
   },
 });

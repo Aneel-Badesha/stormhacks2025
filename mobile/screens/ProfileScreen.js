@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,54 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
+import { apiService } from '../lib/api';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
+  const [stats, setStats] = useState([
+    { label: 'Active Programs', value: '0' },
+    { label: 'Total Points', value: '0' },
+    { label: 'Rewards Earned', value: '0' },
+  ]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUserStats();
+  }, []);
+
+  const fetchUserStats = async () => {
+    try {
+      const { data, error } = await apiService.request('/api/mobile/user/cards');
+      
+      if (error) {
+        console.error('Error fetching user stats:', error);
+        setLoading(false);
+        return;
+      }
+
+      if (data && data.cards) {
+        const cards = data.cards;
+        const activePrograms = cards.length;
+        const totalPoints = cards.reduce((sum, card) => sum + (card.punches || 0), 0);
+        const rewardsEarned = cards.reduce((sum, card) => sum + (card.rewards || 0), 0);
+
+        setStats([
+          { label: 'Active Programs', value: activePrograms.toString() },
+          { label: 'Total Points', value: totalPoints.toLocaleString() },
+          { label: 'Rewards Earned', value: rewardsEarned.toString() },
+        ]);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+      setLoading(false);
+    }
+  };
 
   const handleSignOut = async () => {
     const { error } = await signOut();
@@ -20,12 +61,6 @@ export default function ProfileScreen() {
       Alert.alert('Error', error.message);
     }
   };
-
-  const stats = [
-    { label: 'Active Programs', value: '8' },
-    { label: 'Total Points', value: '12,450' },
-    { label: 'Rewards Earned', value: '23' },
-  ];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -41,18 +76,26 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </View>
-        <Text style={styles.userName}>{user?.email || 'User'}</Text>
+        <Text style={styles.userName}>
+          {user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
+        </Text>
         <Text style={styles.userEmail}>{user?.email}</Text>
       </View>
 
       {/* Stats Grid */}
       <View style={styles.statsContainer}>
-        {stats.map((stat, index) => (
-          <View key={index} style={styles.statCard}>
-            <Text style={styles.statValue}>{stat.value}</Text>
-            <Text style={styles.statLabel}>{stat.label}</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
-        ))}
+        ) : (
+          stats.map((stat, index) => (
+            <View key={index} style={styles.statCard}>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          ))
+        )}
       </View>
 
       {/* Account Section */}
@@ -142,6 +185,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: SPACING.lg,
+    minHeight: 80,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statCard: {
     flex: 1,

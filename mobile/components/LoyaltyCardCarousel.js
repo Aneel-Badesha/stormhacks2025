@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,10 +15,17 @@ const CARD_WIDTH = SCREEN_WIDTH - (SPACING.lg * 2);
 const CARD_HEIGHT = 180;
 const STACKED_OFFSET = 100; // How much each card peeks from behind
 
-export default function LoyaltyCardCarousel({ cards, onAddCard, onRedeem }) {
+export default function LoyaltyCardCarousel({ cards, onAddCard, onRedeem, onDelete }) {
   const [selectedCard, setSelectedCard] = useState(null);
   const [detailsVisible, setDetailsVisible] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState(null);
+
+  // Reset selected card if it's been deleted
+  useEffect(() => {
+    if (selectedCard && !cards.find(card => card.id === selectedCard.id)) {
+      setSelectedCard(null);
+    }
+  }, [cards, selectedCard]);
 
   const handleCardPress = (card) => {
     if (selectedCard?.id === card.id) {
@@ -28,31 +35,49 @@ export default function LoyaltyCardCarousel({ cards, onAddCard, onRedeem }) {
     }
   };
 
-  // Small compact dots for header (next to card name)
+  // Small compact dots for header (next to card name) - matches expanded layout
   const renderCompactDots = (punches, maxPunches) => {
-    const dots = [];
-    const dotSize = 6;
-    const dotSpacing = 3;
+    const dotSize = 5;
+    const dotSpacing = 2;
     
-    for (let i = 0; i < maxPunches; i++) {
-      const isFilled = i < punches;
-      dots.push(
-        <View
-          key={i}
-          style={[
-            styles.punchDot,
-            {
-              width: dotSize,
-              height: dotSize,
-              marginHorizontal: dotSpacing / 2,
-              backgroundColor: isFilled ? '#FFFFFF' : 'rgba(255, 255, 255, 0.3)',
-            },
-          ]}
-        />
+    // Calculate dots per row (max 5 per row)
+    const dotsPerRow = Math.min(maxPunches, 5);
+    const numRows = Math.ceil(maxPunches / dotsPerRow);
+    
+    // Build rows
+    const rows = [];
+    for (let row = 0; row < numRows; row++) {
+      const dotsInThisRow = Math.min(dotsPerRow, maxPunches - (row * dotsPerRow));
+      const rowDots = [];
+      
+      for (let col = 0; col < dotsInThisRow; col++) {
+        const index = row * dotsPerRow + col;
+        const isFilled = index < punches;
+        rowDots.push(
+          <View
+            key={index}
+            style={[
+              styles.compactDot,
+              {
+                width: dotSize,
+                height: dotSize,
+                marginHorizontal: dotSpacing / 2,
+                marginVertical: dotSpacing / 2,
+                backgroundColor: isFilled ? '#FFFFFF' : 'rgba(255, 255, 255, 0.3)',
+              },
+            ]}
+          />
+        );
+      }
+      
+      rows.push(
+        <View key={row} style={styles.compactDotsRow}>
+          {rowDots}
+        </View>
       );
     }
     
-    return <View style={styles.punchRow}>{dots}</View>;
+    return <View style={styles.compactDotsGrid}>{rows}</View>;
   };
 
   // Large expanded dots with logos for filled punches
@@ -137,16 +162,31 @@ export default function LoyaltyCardCarousel({ cards, onAddCard, onRedeem }) {
   // Get emoji/logo for each card
   const getCardEmoji = (cardName) => {
     const emojiMap = {
-      'Starbucks Rewards': '☕',
-      'Tim Hortons': '🍩',
-      'Shoppers Optimum': '💊',
-      'Aeroplan': '✈️',
-      'Best Buy Rewards': '🔌',
-      'Sephora Beauty Insider': '💄',
-      'Petro-Points': '⛽',
-      'Scene+': '🎬',
-      'Costco Membership': '🛒',
-      'Indigo Plum Rewards': '📚',
+      'Great Dane Coffee': '☕',
+      "Ayoub's Dried Fruits and Nuts": '🥜',
+      'Fujiya': '🍱',
+      'Cartems Donuts': '🍩',
+      'Rain or Shine Ice Cream': '🍦',
+      'The Juice Truck': '🥤',
+      'Meat & Bread': '🥖',
+      'Marutama Ramen': '🍜',
+      'Tacofino Ocho': '🌮',
+      'Nero Waffle Bar': '🧇',
+      'O5 Tea': '🍵',
+      'The Flower Factory': '💐',
+      'Massy Books': '📚',
+      'Good Boy Collective': '🐕',
+      'Barber & Co': '💈',
+      'Onyx Nails Studio': '💅',
+      'Karma Teachers': '🧘',
+      'The Hive Bouldering': '🧗',
+      'Ride On Bike Shop': '🚴',
+      'West Boulevard Cleaners': '👔',
+      'Shiny Mobile Detailing': '🚗',
+      'Yaletown Coin Laundry': '🧺',
+      'Brassneck Brewery': '🍺',
+      'Bosa Foods': '🍝',
+      'Klippers Organics (Farmers Market)': '🥕',
     };
     return emojiMap[cardName] || '⭐';
   };
@@ -196,8 +236,10 @@ export default function LoyaltyCardCarousel({ cards, onAddCard, onRedeem }) {
         >
           {/* Card Header with Compact Dots */}
           <View style={styles.cardHeader}>
-            <Text style={styles.cardName}>{card.name}</Text>
-            {renderCompactDots(card.punches || 0, card.maxPunches || 10)}
+            <Text style={styles.cardName} numberOfLines={2}>{card.name}</Text>
+            <View style={styles.dotsContainer}>
+              {renderCompactDots(card.punches || 0, card.maxPunches || 10)}
+            </View>
           </View>
 
           {/* Expanded Punch Card - Only visible when expanded */}
@@ -222,15 +264,15 @@ export default function LoyaltyCardCarousel({ cards, onAddCard, onRedeem }) {
             <View style={styles.expandedContent}>
               <View style={styles.statsSection}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{card.visits || '12'}</Text>
+                  <Text style={styles.statValue}>{card.visits ?? 0}</Text>
                   <Text style={styles.statLabel}>Visits</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{card.rewards || '3'}</Text>
+                  <Text style={styles.statValue}>{card.rewards ?? 0}</Text>
                   <Text style={styles.statLabel}>Rewards</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{card.saved || '$45'}</Text>
+                  <Text style={styles.statValue}>{card.saved || '$0'}</Text>
                   <Text style={styles.statLabel}>Saved</Text>
                 </View>
               </View>
@@ -239,6 +281,16 @@ export default function LoyaltyCardCarousel({ cards, onAddCard, onRedeem }) {
                 <Text style={styles.detailText}>Member since: {card.memberSince || 'Jan 2024'}</Text>
                 <Text style={styles.detailText}>Card ID: {card.cardId || '****1234'}</Text>
               </View>
+
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => {
+                  setSelectedProgram(card);
+                  setDetailsVisible(true);
+                }}
+              >
+                <Text style={styles.actionButtonText}>View Full Details</Text>
+              </TouchableOpacity>
 
               {/* Redeem Button - Only show if card is full */}
               {card.punches >= card.maxPunches && (
@@ -254,15 +306,15 @@ export default function LoyaltyCardCarousel({ cards, onAddCard, onRedeem }) {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={() => {
-                  setSelectedProgram(card);
-                  setDetailsVisible(true);
-                }}
-              >
-                <Text style={styles.actionButtonText}>View Full Details</Text>
-              </TouchableOpacity>
+              {/* Delete Button */}
+              {onDelete && (
+                <TouchableOpacity 
+                  style={styles.deleteButton}
+                  onPress={() => onDelete(card)}
+                >
+                  <Text style={styles.deleteButtonText}>🗑️ Remove Card</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -323,17 +375,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.md,
+    gap: SPACING.sm,
   },
   cardName: {
-    fontSize: 24,
+    fontSize: 20,
     fontFamily: FONTS.regular,
     fontWeight: FONTS.weights.bold,
     color: COLORS.textPrimary,
+    flex: 1,
+    flexShrink: 1,
+  },
+  dotsContainer: {
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactDotsGrid: {
+    flexDirection: 'column',
+    gap: 0,
+  },
+  compactDotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compactDot: {
+    borderRadius: 100,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
   punchRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   punchDot: {
     borderRadius: 100,
@@ -451,30 +526,35 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     alignItems: 'center',
-    marginTop: SPACING.md,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    marginTop: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   redeemButtonText: {
     fontSize: 16,
     fontFamily: FONTS.regular,
-    fontWeight: FONTS.weights.bold,
-    color: '#000000',
-  },
-  actionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    alignItems: 'center',
-    marginTop: SPACING.md,
+    fontWeight: FONTS.weights.semibold,
+    color: COLORS.textPrimary,
   },
   actionButtonText: {
     fontSize: 14,
     fontFamily: FONTS.regular,
     fontWeight: FONTS.weights.semibold,
     color: COLORS.textPrimary,
+  },
+  deleteButton: {
+    backgroundColor: 'rgba(255, 59, 48, 0.2)',
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 59, 48, 0.4)',
+  },
+  deleteButtonText: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    fontWeight: FONTS.weights.medium,
+    color: '#FF3B30',
   },
 });

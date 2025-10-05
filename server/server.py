@@ -6,6 +6,7 @@ import os
 import sqlite3
 import bcrypt
 import secrets
+import random
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_from_directory, session
 from flask_cors import CORS
@@ -28,6 +29,7 @@ CORS(app, supports_credentials=True, resources={
     r"/api/*": {
         "origins": [
             "http://localhost:5000",
+            "http://localhost:5001",
             "http://127.0.0.1:5000",
             "http://localhost:8081",  # Expo dev server default port
             "http://localhost:19000", # Expo dev server alternative port
@@ -74,11 +76,37 @@ def sync_user():
     
     conn = get_db()
     
-    # Check if user already exists
-    existing = conn.execute('SELECT id, email, phone, full_name FROM users WHERE email = ?', (email,)).fetchone()
-    
-    if existing:
-        # User exists, just return their info
+    try:
+        # Check if user already exists
+        existing = conn.execute('SELECT id, email, phone, full_name FROM users WHERE email = ?', (email,)).fetchone()
+        
+        if existing:
+            # User exists, just return their info
+            user_id = existing['id']
+            user_data = {
+                'id': existing['id'],
+                'email': existing['email'],
+                'phone': existing['phone'],
+                'full_name': existing['full_name']
+            }
+        else:
+            # Create new user
+            cursor = conn.execute(
+                'INSERT INTO users (email, phone, full_name) VALUES (?, ?, ?)',
+                (email, phone, full_name)
+            )
+            user_id = cursor.lastrowid
+            conn.commit()
+            user_data = {
+                'id': user_id,
+                'email': email,
+                'phone': phone,
+                'full_name': full_name
+            }
+    except sqlite3.IntegrityError:
+        # Race condition: user was created between check and insert
+        # Just fetch the existing user
+        existing = conn.execute('SELECT id, email, phone, full_name FROM users WHERE email = ?', (email,)).fetchone()
         user_id = existing['id']
         user_data = {
             'id': existing['id'],
@@ -86,22 +114,8 @@ def sync_user():
             'phone': existing['phone'],
             'full_name': existing['full_name']
         }
-    else:
-        # Create new user
-        cursor = conn.execute(
-            'INSERT INTO users (email, phone, full_name) VALUES (?, ?, ?)',
-            (email, phone, full_name)
-        )
-        user_id = cursor.lastrowid
-        conn.commit()
-        user_data = {
-            'id': user_id,
-            'email': email,
-            'phone': phone,
-            'full_name': full_name
-        }
-    
-    conn.close()
+    finally:
+        conn.close()
     
     # Set session
     session.clear()
@@ -263,11 +277,19 @@ def mobile_user_cards():
             r.id,
             r.score,
             r.target_score,
+            r.visits,
+            r.rewards_earned,
+            r.total_saved,
+            r.cash_per_redeem,
+            r.card_number,
             r.last_scan_at,
             r.created_at,
             c.id as company_id,
             c.name as company_name,
-            c.description as company_description
+            c.description as company_description,
+            c.program_description,
+            c.category,
+            c.color
         FROM rewards r
         JOIN companies c ON r.company_id = c.id
         WHERE r.user_id = ? AND c.is_active = 1
@@ -277,35 +299,346 @@ def mobile_user_cards():
     
     cards_data = []
     for card in cards:
+        # Format memberSince from created_at
+        member_since = ''
+        if card['created_at']:
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(card['created_at'].replace('Z', '+00:00'))
+                member_since = dt.strftime('%b %Y')
+            except:
+                member_since = card['created_at'][:7]  # fallback to YYYY-MM
+        
         cards_data.append({
             'id': card['id'],
-            'score': card['score'],
-            'target_score': card['target_score'],
+            'name': card['company_name'],
+            'punches': card['score'],  # score == punches
+            'maxPunches': card['target_score'],  # target_score == maxPunches
+            'color': card['color'] or '#6366F1',
+            'visits': card['visits'] or 0,
+            'rewards': card['rewards_earned'] or 0,
+            'saved': f"${card['total_saved']:.0f}" if card['total_saved'] else '$0',
+            'cash_per_redeem': card['cash_per_redeem'] or 5.0,
+            'memberSince': member_since,
+            'cardId': card['card_number'] or '',
+            'category': card['category'] or '',
             'progress': (card['score'] / card['target_score']) * 100 if card['target_score'] > 0 else 0,
             'last_scan_at': card['last_scan_at'],
             'created_at': card['created_at'],
             'company': {
                 'id': card['company_id'],
                 'name': card['company_name'],
-                'description': card['company_description']
+                'description': card['company_description'],
+                'programDescription': card['program_description'],
+                'category': card['category'],
+                'color': card['color']
             }
         })
     
     return jsonify({'cards': cards_data})
+
+@app.route('/api/mobile/user/cards/<int:card_id>', methods=['GET'])
+def mobile_user_card_by_id(card_id):
+    """Get a specific user's loyalty card by card ID"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    user_id = session['user_id']
+    
+    conn = get_db()
+    card = conn.execute('''
+        SELECT 
+            r.id,
+            r.score,
+            r.target_score,
+            r.visits,
+            r.rewards_earned,
+            r.total_saved,
+            r.cash_per_redeem,
+            r.card_number,
+            r.last_scan_at,
+            r.created_at,
+            c.id as company_id,
+            c.name as company_name,
+            c.description as company_description,
+            c.program_description,
+            c.category,
+            c.color
+        FROM rewards r
+        JOIN companies c ON r.company_id = c.id
+        WHERE r.id = ? AND r.user_id = ? AND c.is_active = 1
+    ''', (card_id, user_id)).fetchone()
+    conn.close()
+    
+    if not card:
+        return jsonify({'error': 'Card not found'}), 404
+    
+    # Format memberSince from created_at
+    member_since = ''
+    if card['created_at']:
+        try:
+            dt = datetime.fromisoformat(card['created_at'].replace('Z', '+00:00'))
+            member_since = dt.strftime('%b %Y')
+        except:
+            member_since = card['created_at'][:7]
+    
+    card_data = {
+        'id': card['id'],
+        'name': card['company_name'],
+        'punches': card['score'],
+        'maxPunches': card['target_score'],
+        'color': card['color'] or '#6366F1',
+        'visits': card['visits'] or 0,
+        'rewards': card['rewards_earned'] or 0,
+        'saved': f"${card['total_saved']:.0f}" if card['total_saved'] else '$0',
+        'cash_per_redeem': card['cash_per_redeem'] or 5.0,
+        'memberSince': member_since,
+        'cardId': card['card_number'] or '',
+        'category': card['category'] or '',
+        'progress': (card['score'] / card['target_score']) * 100 if card['target_score'] > 0 else 0,
+        'last_scan_at': card['last_scan_at'],
+        'created_at': card['created_at'],
+        'company': {
+            'id': card['company_id'],
+            'name': card['company_name'],
+            'description': card['company_description'],
+            'programDescription': card['program_description'],
+            'category': card['category'],
+            'color': card['color']
+        }
+    }
+    
+    return jsonify({'card': card_data})
+
+@app.route('/api/mobile/user/cards/<int:card_id>', methods=['PUT'])
+def update_user_card(card_id):
+    """Update a specific user's loyalty card score"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    user_id = session['user_id']
+    data = request.get_json(silent=True) or {}
+    score_increment = data.get('score_increment', 0)
+    
+    if not isinstance(score_increment, (int, float)):
+        return jsonify({'error': 'score_increment must be a number'}), 400
+    
+    conn = get_db()
+    
+    # Verify card exists and belongs to user
+    card = conn.execute('''
+        SELECT r.id, r.score, r.target_score, r.company_id
+        FROM rewards r
+        JOIN companies c ON r.company_id = c.id
+        WHERE r.id = ? AND r.user_id = ? AND c.is_active = 1
+    ''', (card_id, user_id)).fetchone()
+    
+    if not card:
+        conn.close()
+        return jsonify({'error': 'Card not found'}), 404
+    
+    # Update score
+    new_score = card['score'] + score_increment
+    now_iso = datetime.now().isoformat()
+    
+    conn.execute('''
+        UPDATE rewards 
+        SET score = ?, updated_at = ?
+        WHERE id = ?
+    ''', (new_score, now_iso, card_id))
+    conn.commit()
+    
+    # Fetch updated card
+    updated_card = conn.execute('''
+        SELECT 
+            r.id,
+            r.score,
+            r.target_score,
+            r.visits,
+            r.rewards_earned,
+            r.total_saved,
+            r.cash_per_redeem,
+            r.card_number,
+            r.last_scan_at,
+            r.created_at,
+            c.id as company_id,
+            c.name as company_name,
+            c.description as company_description,
+            c.program_description,
+            c.category,
+            c.color
+        FROM rewards r
+        JOIN companies c ON r.company_id = c.id
+        WHERE r.id = ?
+    ''', (card_id,)).fetchone()
+    conn.close()
+    
+    # Format memberSince from created_at
+    member_since = ''
+    if updated_card['created_at']:
+        try:
+            dt = datetime.fromisoformat(updated_card['created_at'].replace('Z', '+00:00'))
+            member_since = dt.strftime('%b %Y')
+        except:
+            member_since = updated_card['created_at'][:7]
+    
+    card_data = {
+        'id': updated_card['id'],
+        'name': updated_card['company_name'],
+        'punches': updated_card['score'],
+        'maxPunches': updated_card['target_score'],
+        'color': updated_card['color'] or '#6366F1',
+        'visits': updated_card['visits'] or 0,
+        'rewards': updated_card['rewards_earned'] or 0,
+        'saved': f"${updated_card['total_saved']:.0f}" if updated_card['total_saved'] else '$0',
+        'cash_per_redeem': updated_card['cash_per_redeem'] or 5.0,
+        'memberSince': member_since,
+        'cardId': updated_card['card_number'] or '',
+        'category': updated_card['category'] or '',
+        'progress': (updated_card['score'] / updated_card['target_score']) * 100 if updated_card['target_score'] > 0 else 0,
+        'last_scan_at': updated_card['last_scan_at'],
+        'created_at': updated_card['created_at'],
+        'company': {
+            'id': updated_card['company_id'],
+            'name': updated_card['company_name'],
+            'description': updated_card['company_description'],
+            'programDescription': updated_card['program_description'],
+            'category': updated_card['category'],
+            'color': updated_card['color']
+        }
+    }
+    
+    return jsonify({'card': card_data, 'message': f'Score updated by {score_increment}'})
+
+@app.route('/api/mobile/user/cards', methods=['POST'])
+def create_user_card():
+    """Create a new loyalty card for the user (join a program)"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    user_id = session['user_id']
+    data = request.get_json(silent=True) or {}
+    company_id = data.get('company_id')
+    
+    if not company_id:
+        return jsonify({'error': 'company_id required'}), 400
+    
+    conn = get_db()
+    
+    # Verify company exists and is active
+    company = conn.execute('''
+        SELECT id, name, default_target_score, color, category, description, program_description
+        FROM companies 
+        WHERE id = ? AND is_active = 1
+    ''', (company_id,)).fetchone()
+    
+    if not company:
+        conn.close()
+        return jsonify({'error': 'Company not found or inactive'}), 404
+    
+    # Check if user already has a card for this company
+    existing = conn.execute('''
+        SELECT id FROM rewards 
+        WHERE user_id = ? AND company_id = ?
+    ''', (user_id, company_id)).fetchone()
+    
+    if existing:
+        conn.close()
+        return jsonify({'error': 'Card already exists'}), 409
+    
+    # Create new card
+    now_iso = datetime.now().isoformat()
+    target_score = company['default_target_score'] or 10
+    card_number = f"****{random.randint(1000, 9999)}"
+    
+    cursor = conn.execute('''
+        INSERT INTO rewards (
+            user_id, company_id, score, target_score, 
+            visits, rewards_earned, total_saved, cash_per_redeem,
+            card_number, last_scan_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        user_id, company_id, 0, target_score,
+        0, 0, 0.0, 5.0,
+        card_number, now_iso
+    ))
+    card_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    # Format response
+    member_since = datetime.now().strftime('%b %Y')
+    
+    card_data = {
+        'id': card_id,
+        'name': company['name'],
+        'punches': 0,
+        'maxPunches': target_score,
+        'color': company['color'] or '#6366F1',
+        'visits': 0,
+        'rewards': 0,
+        'saved': '$0',
+        'cash_per_redeem': 5.0,
+        'memberSince': member_since,
+        'cardId': card_number,
+        'category': company['category'] or '',
+        'progress': 0,
+        'company': {
+            'id': company['id'],
+            'name': company['name'],
+            'description': company['description'],
+            'programDescription': company['program_description'],
+            'category': company['category'],
+            'color': company['color']
+        }
+    }
+    
+    return jsonify({'card': card_data, 'message': 'Card added successfully'}), 201
+
+@app.route('/api/mobile/user/cards/<int:card_id>', methods=['DELETE'])
+def delete_user_card(card_id):
+    """Delete a user's loyalty card"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    user_id = session['user_id']
+    
+    conn = get_db()
+    
+    # Verify card exists and belongs to user
+    card = conn.execute('''
+        SELECT id FROM rewards 
+        WHERE id = ? AND user_id = ?
+    ''', (card_id, user_id)).fetchone()
+    
+    if not card:
+        conn.close()
+        return jsonify({'error': 'Card not found'}), 404
+    
+    # Delete the card
+    conn.execute('DELETE FROM rewards WHERE id = ?', (card_id,))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Card deleted successfully'})
 
 @app.route('/api/mobile/companies', methods=['GET'])
 def mobile_companies():
     """Get all active companies"""
     conn = get_db()
     companies = conn.execute(
-        'SELECT id, name, description FROM companies WHERE is_active = 1'
+        'SELECT id, name, description, program_description, category, color, default_target_score FROM companies WHERE is_active = 1'
     ).fetchall()
     conn.close()
     
     companies_data = [{
-        'id': c['id'],
+        'id': str(c['id']),  # Convert to string for consistency with frontend
         'name': c['name'],
-        'description': c['description'] or ''
+        'category': c['category'] or '',
+        'color': c['color'] or '#6366F1',
+        'maxPunches': c['default_target_score'] or 10,
+        'companyDescription': c['description'] or '',
+        'programDescription': c['program_description'] or ''
     } for c in companies]
     
     return jsonify({'companies': companies_data})
@@ -371,10 +704,22 @@ def mobile_scan():
     if existing:
         previous_score = int(existing['score'] or 0)
         target_score = int(existing['target_score'] or 10)
-        new_score = previous_score + 1
         
+        # Check if already at max - don't increment past target
+        if previous_score >= target_score:
+            conn.close()
+            return jsonify({
+                'error': 'Card is full',
+                'message': f'Your card is already at maximum ({target_score}/{target_score}). Please redeem your reward first.',
+                'current_score': previous_score,
+                'target_score': target_score
+            }), 400
+        
+        new_score = min(previous_score + 1, target_score)  # Cap at target_score
+        
+        # Also increment visits counter
         conn.execute(
-            'UPDATE rewards SET score = ?, last_scan_at = ?, updated_at = ? WHERE id = ?',
+            'UPDATE rewards SET score = ?, visits = visits + 1, last_scan_at = ?, updated_at = ? WHERE id = ?',
             (new_score, now_iso, now_iso, existing['id'])
         )
     else:
@@ -383,9 +728,9 @@ def mobile_scan():
         target_score = 10
         
         conn.execute(
-            'INSERT INTO rewards (user_id, company_id, score, target_score, last_scan_at) '
-            'VALUES (?, ?, ?, ?, ?)',
-            (user_id, company_id, new_score, target_score, now_iso)
+            'INSERT INTO rewards (user_id, company_id, score, target_score, visits, last_scan_at) '
+            'VALUES (?, ?, ?, ?, ?, ?)',
+            (user_id, company_id, new_score, target_score, 1, now_iso)
         )
     
     conn.commit()
@@ -412,6 +757,61 @@ def mobile_scan():
         response['reward_message'] = f"🎉 Congratulations! You earned a reward at {company['name']}!"
     
     return jsonify(response)
+
+@app.route('/api/mobile/redeem', methods=['POST'])
+def mobile_redeem():
+    """Redeem a reward - resets score to 0 and increments rewards_earned"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json(silent=True) or {}
+    card_id = data.get('card_id')
+    
+    if not card_id:
+        return jsonify({'error': 'card_id required'}), 400
+    
+    conn = get_db()
+    
+    # Get the reward card
+    card = conn.execute(
+        'SELECT id, user_id, score, target_score, cash_per_redeem, rewards_earned, total_saved FROM rewards WHERE id = ?',
+        (card_id,)
+    ).fetchone()
+    
+    if not card:
+        conn.close()
+        return jsonify({'error': 'Card not found'}), 404
+    
+    # Verify ownership
+    if card['user_id'] != session['user_id']:
+        conn.close()
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    # Check if card is full
+    if card['score'] < card['target_score']:
+        conn.close()
+        return jsonify({'error': 'Card not full', 'message': 'You need to complete your punch card before redeeming'}), 400
+    
+    # Reset score, increment rewards_earned, and update total_saved
+    cash_value = card['cash_per_redeem'] or 5.0
+    new_rewards_earned = (card['rewards_earned'] or 0) + 1
+    new_total_saved = (card['total_saved'] or 0) + cash_value
+    now_iso = datetime.now().isoformat()
+    
+    conn.execute(
+        'UPDATE rewards SET score = 0, rewards_earned = ?, total_saved = ?, updated_at = ? WHERE id = ?',
+        (new_rewards_earned, new_total_saved, now_iso, card_id)
+    )
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Reward redeemed successfully!',
+        'cash_value': cash_value,
+        'new_rewards_earned': new_rewards_earned,
+        'new_total_saved': new_total_saved
+    })
 
 # Legacy alias for backward compatibility - Admin Dashboard Scan
 @app.route('/api/rewards/scan', methods=['POST'])
@@ -857,4 +1257,4 @@ if __name__ == '__main__':
     if not os.path.exists(DB_PATH):
         init_db()
     print("Starting app")
-    app.run(debug=True, host="172.16.143.239", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5001)

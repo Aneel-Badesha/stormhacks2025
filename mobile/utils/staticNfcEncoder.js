@@ -9,8 +9,6 @@
  * so tags never expire and don't need to be rewritten.
  */
 
-import { ALL_PROGRAMS } from '../data/mockData';
-
 /**
  * Generate a static NFC tag URL (write this to the NFC tag once)
  * @param {string} programId - The ID of the loyalty program
@@ -71,12 +69,7 @@ export const parseStaticTag = (url) => {
       return { error: 'Missing program ID' };
     }
     
-    // Find the program
-    const program = ALL_PROGRAMS.find(p => p.id === programId);
-    if (!program) {
-      return { error: 'Program not found' };
-    }
-    
+    // Don't validate program here - let App.js handle it with real data from API
     // Generate timestamp NOW (when scanned, not when tag was created)
     const timestamp = Math.floor(Date.now() / 1000);
     
@@ -86,7 +79,6 @@ export const parseStaticTag = (url) => {
     return {
       success: true,
       programId,
-      programName: program.name,
       points: punches, // Keep as 'points' for compatibility with existing code
       timestamp,
       merchantId: merchantId || null,

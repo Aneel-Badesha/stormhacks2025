@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
@@ -56,6 +57,11 @@ export default function LoginScreen({ navigation }) {
       <WaveBackground />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.formContainer}>
+          <Image 
+            source={require('../assets/PunchlyLogoTransparent.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Login to your account</Text>
 
@@ -113,6 +119,12 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     padding: SPACING.lg,
+  },
+  logo: {
+    width: 225,
+    height: 225,
+    alignSelf: 'flex-start',
+    marginBottom: -20,
   },
   title: {
     fontSize: 36,

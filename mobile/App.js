@@ -15,9 +15,8 @@ import HomeScreen from './screens/HomeScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import BrowseScreen from './screens/BrowseScreen';
 import { COLORS, FONTS } from './constants/theme';
-import { INITIAL_USER_CARDS } from './data/mockData';
 import { parseStaticTag, validateUserHasCard, awardPunches } from './utils/staticNfcEncoder';
-import { ALL_PROGRAMS } from './data/mockData';
+import { apiService } from './lib/api';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -37,18 +36,61 @@ function AuthStack() {
 }
 
 function AppTabs() {
+  const { user, flaskSynced } = useAuth();
   const [browseVisible, setBrowseVisible] = useState(false);
-  const [userCards, setUserCards] = useState(INITIAL_USER_CARDS);
+  const [userCards, setUserCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [allPrograms, setAllPrograms] = useState([]);
   const insets = useSafeAreaInsets();
   
-  // Use ref to always have latest userCards in handleDeepLink
+  // Use refs to always have latest values in handleDeepLink
   const userCardsRef = React.useRef(userCards);
+  const allProgramsRef = React.useRef(allPrograms);
+  
   React.useEffect(() => {
     userCardsRef.current = userCards;
   }, [userCards]);
+  
+  React.useEffect(() => {
+    allProgramsRef.current = allPrograms;
+  }, [allPrograms]);
 
-  const handleDeepLink = React.useCallback(({ url }) => {
+  // Fetch user cards and programs after Flask sync completes
+  useEffect(() => {
+    if (flaskSynced) {
+      loadUserData();
+    }
+  }, [flaskSynced]);
+
+  const loadUserData = async () => {
+    setLoading(true);
+    try {
+      // Fetch user cards
+      const { data: cardsData, error: cardsError } = await apiService.getUserCards();
+      if (!cardsError && cardsData?.cards) {
+        setUserCards(cardsData.cards);
+      } else {
+        console.error('Error loading user cards:', cardsError);
+      }
+
+      // Fetch all programs for deep link validation
+      const { data: programsData, error: programsError } = await apiService.getPrograms();
+      if (!programsError && programsData?.companies) {
+        setAllPrograms(programsData.companies);
+      } else {
+        console.error('Error loading programs:', programsError);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeepLink = React.useCallback(({ url }, retryCount = 0) => {
     console.log('Deep link received:', url);
+    console.log('allProgramsRef length:', allProgramsRef.current.length);
+    console.log('userCards length:', userCardsRef.current.length);
     
     const result = parseStaticTag(url);
     
@@ -60,34 +102,90 @@ function AppTabs() {
       return;
     }
     
-    // Find the program
-    const program = ALL_PROGRAMS.find(p => p.id === result.programId);
-    if (!program) {
-      Alert.alert('Error', 'Program not found');
+    console.log('Parsed result:', result);
+    
+    // Guard: Wait for programs to load before processing scan (max 10 retries = 5 seconds)
+    if (allProgramsRef.current.length === 0) {
+      if (retryCount < 10) {
+        console.log(`Programs not loaded yet, waiting... (retry ${retryCount + 1}/10)`);
+        setTimeout(() => {
+          handleDeepLink({ url }, retryCount + 1); // Retry with incremented count
+        }, 500);
+      } else {
+        console.error('Failed to load programs after 10 retries');
+        Alert.alert('Error', 'Failed to load programs. Please try again.');
+      }
       return;
     }
     
-    // Check if user has the card (use ref for latest value)
-    if (!validateUserHasCard(result.programId, userCardsRef.current)) {
-      Alert.alert(
-        'Card Not Found',
-        `You don't have a ${program.name} card yet. Would you like to add it?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Add Card', 
-            onPress: () => {
-              handleAddCard(program);
-              Alert.alert('Success', 'Card added! Please scan again to earn points.');
-            }
-          },
-        ]
-      );
+    console.log('All programs:', allProgramsRef.current.map(p => ({ id: p.id, name: p.name, idType: typeof p.id })));
+    console.log('Looking for programId:', result.programId, 'Type:', typeof result.programId);
+    
+    // Find the program (use ref for latest value)
+    // Use loose equality (==) to handle string/number mismatch
+    const program = allProgramsRef.current.find(p => p.id == result.programId);
+    console.log('Found program:', program?.name);
+    
+    if (!program) {
+      setTimeout(() => {
+        Alert.alert('Error', `Program not found for ID: ${result.programId}\n\nAvailable IDs: ${allProgramsRef.current.map(p => p.id).join(', ')}`);
+      }, 100);
+      return;
+    }
+    
+    // Check if user has the card (check by company name since card.id is reward ID)
+    const hasCard = userCardsRef.current.some(card => card.name === program.name);
+    console.log('Has card?', hasCard);
+    
+    if (!hasCard) {
+      console.log('User does not have card, showing alert');
+      
+      // Use setTimeout to ensure alert shows (in case another alert is showing)
+      setTimeout(() => {
+        Alert.alert(
+          'Card Not Found',
+          `You don't have a ${program.name} card yet. Would you like to add it?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Add Card', 
+              onPress: async () => {
+                console.log('User chose to add card');
+                await handleAddCard(program);
+                
+                // After adding card, award the first punch
+                console.log('Card added, now awarding first punch...');
+                
+                // Get user ID from session
+                const { data: sessionData } = await apiService.getSession();
+                const userId = sessionData?.user?.id;
+                
+                if (userId) {
+                  const { data, error } = await apiService.scanNFC({
+                    user_id: userId,
+                    company_id: parseInt(result.programId),
+                  });
+                  
+                  if (!error && data) {
+                    await loadUserData(); // Refresh cards
+                    Alert.alert(
+                      '🎉 Card Added & Punch Awarded!',
+                      `${program.name} card added to your wallet!\n\nFirst punch awarded: 1/${data.target_score}`,
+                      [{ text: 'Awesome!', style: 'default' }]
+                    );
+                  }
+                }
+              }
+            },
+          ],
+          { cancelable: true }
+        );
+      }, 100);
       return;
     }
     
     // Check if card is already at max punches
-    const currentCard = userCardsRef.current.find(card => card.id === result.programId);
+    const currentCard = userCardsRef.current.find(card => card.name === program.name);
     const currentPunches = currentCard?.punches || 0;
     const maxPunches = currentCard?.maxPunches || 10;
     const isAtMax = currentPunches >= maxPunches;
@@ -98,7 +196,6 @@ function AppTabs() {
       // Card is full - don't award punch, show redeem message
       console.log('⚠️ Card at max punches - must redeem first');
       
-      // Use setTimeout to ensure alert shows (in case previous alert is still showing)
       setTimeout(() => {
         Alert.alert(
           '🎁 Card Full!',
@@ -110,31 +207,61 @@ function AppTabs() {
       return;
     }
     
-    // Award punches (use ref for latest value)
-    const updatedCards = userCardsRef.current.map(card => {
-      if (card.id === result.programId) {
-        return awardPunches(card, result.points);
+    // Call backend API to increment score
+    const scanNFC = async () => {
+      try {
+        // The backend uses session cookies, but we need to pass user_id for the scan endpoint
+        // Get it from the current card since we know the user has it
+        const currentCard = userCardsRef.current.find(card => card.name === program.name);
+        
+        if (!currentCard) {
+          Alert.alert('Error', 'Card not found in your wallet');
+          return;
+        }
+        
+        // We need to get the user_id - let's fetch it from the session endpoint
+        const { data: sessionData } = await apiService.getSession();
+        const userId = sessionData?.user?.id;
+        
+        if (!userId) {
+          Alert.alert('Error', 'User not authenticated. Please log in again.');
+          return;
+        }
+        
+        const { data, error } = await apiService.scanNFC({
+          user_id: userId,
+          company_id: parseInt(result.programId),
+        });
+        
+        if (error) {
+          Alert.alert('Scan Error', error);
+          return;
+        }
+        
+        // Refresh user cards to get updated data from backend
+        await loadUserData();
+        
+        // Show success alert
+        const punchText = result.points === 1 ? 'punch' : 'punches';
+        console.log('✅ SUCCESS: Punch awarded!');
+        console.log(`+${result.points} ${punchText} added to ${program.name}`);
+        
+        setTimeout(() => {
+          Alert.alert(
+            '🎉 Punch Added!',
+            `+${result.points} ${punchText} added to ${program.name}\n\nPunch count: ${data.new_score}/${data.target_score}`,
+            [{ text: 'Awesome!', style: 'default' }],
+            { cancelable: true }
+          );
+        }, 100);
+      } catch (error) {
+        console.error('Error scanning NFC:', error);
+        Alert.alert('Error', 'Failed to process scan. Please try again.');
       }
-      return card;
-    });
+    };
     
-    setUserCards(updatedCards);
-    
-    // Show alert
-    const punchText = result.points === 1 ? 'punch' : 'punches';
-    console.log('✅ SUCCESS: Punch awarded!');
-    console.log(`+${result.points} ${punchText} added to ${program.name}`);
-    
-    // Use setTimeout to ensure alert shows after state update
-    setTimeout(() => {
-      Alert.alert(
-        '🎉 Punch Added!',
-        `+${result.points} ${punchText} added to ${program.name}\n\nCheck your Home screen to see the update!`,
-        [{ text: 'Awesome!', style: 'default' }],
-        { cancelable: true }
-      );
-    }, 100);
-  }, []); // Empty deps - use ref for latest userCards
+    scanNFC();
+  }, [allPrograms, user, loadUserData]); // Depend on allPrograms, user, and loadUserData
 
   // Deep link handler for NFC auto-open
   useEffect(() => {
@@ -150,10 +277,13 @@ function AppTabs() {
     // Handle deep links when app opens from closed state (only once)
     Linking.getInitialURL().then((url) => {
       console.log('Initial URL:', url);
-      // Only process if it has query parameters and hasn't been processed yet
-      if (url && url.includes('?') && !hasProcessedInitialUrl) {
+      // Only process if it has NFC scan parameters (programId) and hasn't been processed yet
+      if (url && url.includes('programId=') && !hasProcessedInitialUrl) {
         hasProcessedInitialUrl = true;
+        console.log('Processing initial NFC scan URL');
         handleDeepLink({ url });
+      } else if (url && url.includes('?')) {
+        console.log('Initial URL has query params but no programId, ignoring:', url);
       }
     });
     
@@ -163,43 +293,62 @@ function AppTabs() {
     };
   }, []); // Empty dependency array - only run once on mount
 
-  const handleAddCard = (program) => {
+  const handleAddCard = async (program) => {
     // Check if card already exists
-    if (userCardsRef.current.some(card => card.id === program.id)) {
+    if (userCardsRef.current.some(card => card.name === program.name)) {
+      Alert.alert('Already Added', `You already have a ${program.name} card.`);
       return;
     }
     
-    // Estimate cash value based on program type
-    const getCashPerRedeem = (programName) => {
-      const estimates = {
-        'Starbucks Rewards': 5,
-        'Tim Hortons': 4,
-        'Shoppers Optimum': 20,
-        'Aeroplan': 50,
-        'Best Buy Rewards': 25,
-        'Sephora Beauty Insider': 15,
-      };
-      return estimates[programName] || 10;
-    };
-    
-    // Create new card with default values
-    const newCard = {
-      id: program.id,
-      name: program.name,
-      punches: 0,
-      maxPunches: program.maxPunches || 10,
-      color: program.color,
-      visits: 0,
-      rewards: 0,
-      saved: '$0',
-      cash_per_redeem: getCashPerRedeem(program.name),
-      memberSince: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      cardId: `****${Math.floor(1000 + Math.random() * 9000)}`,
-      companyDescription: program.companyDescription,
-      programDescription: program.programDescription,
-    };
-    
-    setUserCards([...userCardsRef.current, newCard]);
+    try {
+      // Call API to create the card in the database
+      const { data, error } = await apiService.createUserCard(program.id);
+      
+      if (error) {
+        Alert.alert('Error', error || 'Failed to add card');
+        return;
+      }
+      
+      if (data?.card) {
+        // Add the new card to state
+        setUserCards([...userCardsRef.current, data.card]);
+        // Alert.alert('Success!', `${program.name} card added! 🎉`);
+      }
+    } catch (error) {
+      console.error('Error adding card:', error);
+      Alert.alert('Error', 'Failed to add card. Please try again.');
+    }
+  };
+
+  const handleDeleteCard = async (card) => {
+    Alert.alert(
+      'Delete Card',
+      `Are you sure you want to remove your ${card.name} card? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await apiService.deleteUserCard(card.id);
+              
+              if (error) {
+                Alert.alert('Error', error || 'Failed to delete card');
+                return;
+              }
+              
+              // Remove card from state
+              setUserCards(userCardsRef.current.filter(c => c.id !== card.id));
+              Alert.alert('Deleted', `${card.name} card removed.`);
+            } catch (error) {
+              console.error('Error deleting card:', error);
+              Alert.alert('Error', 'Failed to delete card. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -233,7 +382,16 @@ function AppTabs() {
             ),
           }}
         >
-          {(props) => <HomeScreen {...props} userCards={userCards} setUserCards={setUserCards} />}
+          {(props) => (
+            <HomeScreen 
+              {...props} 
+              userCards={userCards} 
+              setUserCards={setUserCards}
+              loading={loading}
+              onRefresh={loadUserData}
+              onDeleteCard={handleDeleteCard}
+            />
+          )}
         </Tab.Screen>
         <Tab.Screen
           name="Browse"

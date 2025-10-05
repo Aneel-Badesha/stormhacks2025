@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING } from '../constants/theme';
 import LoyaltyCardCarousel from '../components/LoyaltyCardCarousel';
-import { INITIAL_USER_CARDS } from '../data/mockData';
+import { apiService } from '../lib/api';
 
-export default function HomeScreen({ userCards, setUserCards }) {
-  // Use prop or fallback to initial data
-  const loyaltyCards = userCards || INITIAL_USER_CARDS;
+export default function HomeScreen({ userCards, setUserCards, loading, onRefresh, onDeleteCard }) {
+  const [refreshing, setRefreshing] = useState(false);
+  const loyaltyCards = userCards || [];
 
-  const handleRedeem = (card) => {
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await onRefresh?.();
+    setRefreshing(false);
+  };
+
+  const handleRedeem = async (card) => {
     const cashValue = card.cash_per_redeem || 5;
     
     Alert.alert(
@@ -20,39 +26,62 @@ export default function HomeScreen({ userCards, setUserCards }) {
         {
           text: 'Redeem',
           style: 'default',
-          onPress: () => {
-            // Reset punches to 0, increment rewards, and add to saved amount
-            const updatedCards = userCards.map(c => {
-              if (c.id === card.id) {
-                // Parse current saved amount and add new value
-                const currentSaved = parseFloat(c.saved?.replace('$', '') || '0');
-                const newSaved = currentSaved + cashValue;
-                
-                return {
-                  ...c,
-                  punches: 0,
-                  rewards: (c.rewards || 0) + 1,
-                  saved: `$${newSaved.toFixed(0)}`,
-                };
+          onPress: async () => {
+            try {
+              const { data, error } = await apiService.redeemReward(card.id);
+              
+              if (error) {
+                Alert.alert('Error', error);
+                return;
               }
-              return c;
-            });
-            setUserCards(updatedCards);
-            Alert.alert('Success!', `Reward redeemed from ${card.name}! 🎉\n\nYou saved $${cashValue}!`);
+              
+              // Reload user cards from database
+              await onRefresh();
+              
+              Alert.alert('Success!', `Reward redeemed from ${card.name}! 🎉\n\nYou saved $${data.cash_value}!`);
+            } catch (error) {
+              console.error('Error redeeming reward:', error);
+              Alert.alert('Error', 'Failed to redeem reward. Please try again.');
+            }
           },
         },
       ]
     );
   };
 
+  if (loading && loyaltyCards.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Loading your cards...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.primary}
+            colors={[COLORS.primary]}
+          />
+        }
+      >
         <Text style={styles.title}>My Cards</Text>
         <Text style={styles.subtitle}>Swipe to browse your loyalty programs</Text>
 
         {loyaltyCards.length > 0 ? (
-          <LoyaltyCardCarousel cards={loyaltyCards} onRedeem={handleRedeem} />
+          <LoyaltyCardCarousel 
+            cards={loyaltyCards} 
+            onRedeem={handleRedeem}
+            onDelete={onDeleteCard}
+          />
         ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No loyalty cards yet</Text>
@@ -107,5 +136,16 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: SPACING.md,
+    fontSize: 16,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
   },
 });

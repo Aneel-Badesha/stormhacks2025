@@ -13,29 +13,38 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Companies (each company has exactly one login)
 CREATE TABLE IF NOT EXISTS companies (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  name           TEXT NOT NULL,
-  description    TEXT,
-  login_email    TEXT UNIQUE NOT NULL,       -- company login
-  password_hash  TEXT NOT NULL,              -- bcrypt/argon2 hash of the company password
-  is_active      INTEGER NOT NULL DEFAULT 1, -- 1 = active
-  last_login_at  DATETIME,
-  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  name                TEXT NOT NULL,
+  description         TEXT,                   -- companyDescription
+  program_description TEXT,                   -- programDescription
+  category            TEXT,                   -- e.g., 'Coffee', 'Grocery', 'Restaurant'
+  color               TEXT DEFAULT '#6366F1', -- brand color for UI
+  default_target_score INTEGER DEFAULT 10,    -- default maxPunches for new cards
+  login_email         TEXT UNIQUE NOT NULL,   -- company login
+  password_hash       TEXT NOT NULL,          -- bcrypt/argon2 hash of the company password
+  is_active           INTEGER NOT NULL DEFAULT 1, -- 1 = active
+  last_login_at       DATETIME,
+  created_at          DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_companies_login_email
   ON companies(login_email);
 
--- Rewards link users <-> companies
+-- Rewards link users <-> companies (user cards)
 CREATE TABLE IF NOT EXISTS rewards (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id        INTEGER NOT NULL,
-  company_id     INTEGER NOT NULL,
-  score          INTEGER DEFAULT 0,
-  target_score   INTEGER DEFAULT 5,
-  last_scan_at   DATETIME,
-  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id          INTEGER NOT NULL,
+  company_id       INTEGER NOT NULL,
+  score            INTEGER DEFAULT 0,        -- punches earned
+  target_score     INTEGER DEFAULT 10,       -- maxPunches to get reward
+  visits           INTEGER DEFAULT 0,        -- total visits/scans
+  rewards_earned   INTEGER DEFAULT 0,        -- total rewards redeemed
+  total_saved      REAL DEFAULT 0.0,         -- total $ saved
+  cash_per_redeem  REAL DEFAULT 5.0,         -- $ value per reward
+  card_number      TEXT,                     -- masked card number like '****5678'
+  last_scan_at     DATETIME,
+  created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id)    REFERENCES users(id)     ON DELETE CASCADE,
   FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   UNIQUE(user_id, company_id)

@@ -1,6 +1,6 @@
 // API Configuration
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || (__DEV__ 
-  ? 'http://172.16.143.239:5000' // Development fallback
+  ? 'http://172.16.189.173:5001' // Development fallback (use your computer's local IP)
   : 'https://your-production-domain.com'); // Production fallback
 
 console.log('📡 API Base URL:', API_BASE_URL);
@@ -114,10 +114,30 @@ class ApiService {
     return this.request(API_ENDPOINTS.USER_CARDS);
   }
 
+  async createUserCard(companyId) {
+    return this.request(API_ENDPOINTS.USER_CARDS, {
+      method: 'POST',
+      body: JSON.stringify({ company_id: companyId }),
+    });
+  }
+
+  async deleteUserCard(cardId) {
+    return this.request(`${API_ENDPOINTS.USER_CARDS}/${cardId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async scanNFC(scanData) {
     return this.request(API_ENDPOINTS.SCAN_NFC, {
       method: 'POST',
       body: JSON.stringify(scanData),
+    });
+  }
+
+  async redeemReward(cardId) {
+    return this.request('/api/mobile/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ card_id: cardId }),
     });
   }
 
