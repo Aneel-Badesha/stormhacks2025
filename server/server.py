@@ -332,6 +332,86 @@ def reset_reward():
 
     return jsonify({'success': True, 'score': new_score, 'target_score': target})
 
+@app.route('/api/rewards/increment', methods=['POST'])
+def increment_reward():
+    """
+    Increment a user's reward score by `amount` (default 1).
+    Creates the rewards row if it doesn't exist for this company.
+    Body: { "user_id": <int>, "amount": <int, optional, default 1> }
+    """
+    auth_error = require_auth()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+    try:
+        amount = int(data.get('amount', 1))
+    except Exception:
+        amount = 1
+
+    if not user_id:
+        return jsonify({'error': 'user_id required'}), 400
+    if amount == 0:
+        return jsonify({'error': 'amount must be non-zero'}), 400
+
+    company_id = session['company_id']
+    now_iso = datetime.now().isoformat()
+
+    conn = get_db()
+    conn.row_factory = sqlite3.Row
+
+    # Ensure user exists (optional; remove if you allow free-form user_id)
+    user_row = conn.execute('SELECT id FROM users WHERE id=?', (user_id,)).fetchone()
+    if not user_row:
+        conn.close()
+        return jsonify({'error': 'user not found'}), 404
+
+    # Read current values (if any) for return payload
+    before = conn.execute(
+        'SELECT id, score, target_score FROM rewards WHERE user_id=? AND company_id=?',
+        (user_id, company_id)
+    ).fetchone()
+    prev_score = int(before['score']) if before else 0
+    target = int(before['target_score']) if (before and before['target_score'] is not None) else 10
+
+    # Upsert + increment
+    # If the row doesn't exist, insert with score=<amount>; otherwise add <amount>
+    conn.execute(
+        '''
+        INSERT INTO rewards (user_id, company_id, score, target_score, last_scan_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, company_id) DO UPDATE SET
+            score = score + excluded.score,
+            last_scan_at = excluded.last_scan_at,
+            updated_at = excluded.updated_at
+        ''',
+        (user_id, company_id, amount, target, now_iso, now_iso)
+    )
+
+    # Fetch updated values
+    after = conn.execute(
+        'SELECT score, target_score FROM rewards WHERE user_id=? AND company_id=?',
+        (user_id, company_id)
+    ).fetchone()
+    conn.commit()
+    conn.close()
+
+    new_score = int(after['score'])
+    target = int(after['target_score'] or 10)
+    reward_earned = new_score >= target
+
+    return jsonify({
+        'success': True,
+        'user_id': user_id,
+        'company_id': company_id,
+        'amount': amount,
+        'previous_score': prev_score,
+        'new_score': new_score,
+        'target_score': target,
+        'reward_earned': reward_earned
+    })
+
 # ============================================
 # Static file serving
 # ============================================
