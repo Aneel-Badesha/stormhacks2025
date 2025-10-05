@@ -1,6 +1,6 @@
 PY   := python3
-DB   := rewards.db
-SEED := seed.sql
+DB   := data/rewards.db
+SEED := data/seed.sql
 
 .DEFAULT_GOAL := run
 

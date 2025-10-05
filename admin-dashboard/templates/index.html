@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Company Login</title>
+  <link rel="stylesheet" href="/static/css/login.css">
+</head>
+<body>
+  <div class="login-card">
+    <h1>🏢 Company Login</h1>
+    <p class="subtitle">Enter your email and password to access the admin dashboard</p>
+
+    <form id="loginForm" novalidate>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input
+          type="email"
+          id="email"
+          placeholder="coffee@login.local"
+          autocomplete="username"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          placeholder="Enter password"
+          autocomplete="current-password"
+          required
+        />
+      </div>
+
+      <button type="submit" id="loginBtn">Sign In</button>
+      <div class="error" id="error"></div>
+    </form>
+
+    <div class="hint">
+      Demo: <code>coffee@login.local</code> / <code>password</code>
+    </div>
+  </div>
+
+  <script src="/static/js/login.js"></script>
+</body>
+</html>

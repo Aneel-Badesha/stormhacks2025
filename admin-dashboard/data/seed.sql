@@ -46,10 +46,10 @@ INSERT INTO users (id, email, phone, full_name, created_at) VALUES
 -- ------------------------------------------------------
 INSERT INTO rewards (user_id, company_id, score, target_score, last_scan_at, created_at, updated_at) VALUES
   -- Coffee Shop (company_id=1)
-  (1, 1, 2, 10, datetime('now', '-4 days'),  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  (2, 1, 4, 10, datetime('now', '-3 days'),  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  (3, 1, 6, 10, datetime('now', '-2 days'),  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  (4, 1, 8, 10, datetime('now', '-1 day'),   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (1, 1, 2, 5, datetime('now', '-4 days'),  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (2, 1, 4, 5, datetime('now', '-3 days'),  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (3, 1, 6, 5, datetime('now', '-2 days'),  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (4, 1, 8, 5, datetime('now', '-1 day'),   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 
   -- Pizza Palace (company_id=2)
   (2, 2, 3, 10, datetime('now', '-5 hours'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),

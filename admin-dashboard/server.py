@@ -28,7 +28,7 @@ CORS(app, supports_credentials=True, resources={
     r"/api/*": {"origins": ["http://localhost:5000", "http://127.0.0.1:5000"]}
 })
 
-DB_PATH = 'rewards.db'
+DB_PATH = 'data/rewards.db'
 
 def get_db():
     """Get database connection"""
@@ -39,7 +39,7 @@ def get_db():
 def init_db():
     """Initialize database with schema"""
     conn = get_db()
-    with open('schema.sql', 'r') as f:
+    with open('data/schema.sql', 'r') as f:
         conn.executescript(f.read())
     conn.commit()
     conn.close()
@@ -114,9 +114,9 @@ def login():
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
-    """Logout endpoint"""
+    """Log out the current company and redirect to login"""
     session.clear()
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'redirect': '/index.html'})
 
 @app.route('/api/auth/session', methods=['GET'])
 def get_session():
@@ -247,27 +247,59 @@ def add_scan():
 
 @app.route('/api/rewards/reset', methods=['POST'])
 def reset_reward():
-    """Reset a user's reward score (after redemption)"""
+    """After redemption: subtract target_score from score (never below 0)"""
     auth_error = require_auth()
     if auth_error:
         return auth_error
-    
+
     data = request.get_json(silent=True) or {}
     user_id = data.get('user_id')
-    company_id = session['company_id']
-    
+    company_id = session.get('company_id')
     if not user_id:
         return jsonify({'error': 'user_id required'}), 400
-    
+
+    now = datetime.now().isoformat()
     conn = get_db()
+    conn.row_factory = sqlite3.Row
+
+    # Fetch current score and target
+    row = conn.execute(
+        'SELECT id, score, target_score FROM rewards WHERE user_id=? AND company_id=?',
+        (user_id, company_id)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'reward not found for user/company'}), 404
+
+    # Normalize types defensively
+    try:
+        score = int(row['score'] or 0)
+    except Exception:
+        print("CANNOT READ SCORE")
+        score = 0
+    try:
+        target = int(row['target_score'] or 0)
+    except Exception:
+        print("CANNOT READ TARGET SCORE")
+        target = 0
+
+    # Fallback if target is missing/invalid
+    # print(target)
+    if target <= 0:
+        target = 10  # sane default
+    # print(target)
+
+    new_score = max(score - target, 0)
+
+    # Update
     conn.execute(
-        'UPDATE rewards SET score = 0, updated_at = ? WHERE user_id = ? AND company_id = ?',
-        (datetime.now().isoformat(), user_id, company_id)
+        'UPDATE rewards SET score=?, updated_at=? WHERE id=?',
+        (new_score, now, row['id'])
     )
     conn.commit()
     conn.close()
-    
-    return jsonify({'success': True})
+
+    return jsonify({'success': True, 'score': new_score, 'target_score': target})
 
 # ============================================
 # Static file serving
@@ -275,11 +307,15 @@ def reset_reward():
 
 @app.route('/')
 def serve_index():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory('templates', 'index.html')
 
-@app.route('/<path:path>')
+@app.route('/dashboard.html')
+def serve_dashboard():
+    return send_from_directory('templates', 'dashboard.html')
+
+@app.route('/static/<path:path>')
 def serve_static(path):
-    return send_from_directory('.', path)
+    return send_from_directory('static', path)
 
 # ============================================
 # Main

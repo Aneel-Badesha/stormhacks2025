@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS rewards (
   user_id        INTEGER NOT NULL,
   company_id     INTEGER NOT NULL,
   score          INTEGER DEFAULT 0,
-  target_score   INTEGER DEFAULT 10,
+  target_score   INTEGER DEFAULT 5,
   last_scan_at   DATETIME,
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
