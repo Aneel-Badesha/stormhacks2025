@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Loyalty Admin</title>
+  <title>Admin</title>
   <link rel="stylesheet" href="./app.css" />
 </head>
 <body>
   <aside class="sidebar">
-    <h2>Loyalty Admin</h2>
+    <h2>Admin</h2>
     <nav>
       <a href="#dashboard">Dashboard</a>
       <a href="#tags">Tags</a>
@@ -93,3 +93,22 @@
   <script type="module" src="./admin.js"></script>
 </body>
 </html>
+
+<script type="module">
+  window.addEventListener('load', async () => {
+    if (!window.supa) return;
+
+    const { data: { user: u } = {} } = await window.supa.auth.getUser();
+    if (!u) return;
+
+    const { count, error } = await supa
+      .from('users')
+      .select('id', { count: 'exact', head: true }); // count(*) without fetching rows
+
+    if (!error) {
+      document.getElementById('kpi-users').textContent = count ?? 0;
+    } else {
+      console.error(error);
+    }
+  });
+</script>

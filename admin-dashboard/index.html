@@ -16,7 +16,7 @@
     </form>
   </main>
 
-  <script src="./config.js"></script>
+  <!-- <script src="./config.js"></script>
   <script type="module" src="./supa.js"></script>
   <script type="module">
     const form = document.getElementById('loginForm');
@@ -34,6 +34,35 @@
       if (error) err.textContent = error.message;
       else location.href = './admin.html';
     });
-  </script>
+  </script> -->
+  <script src="./config.js"></script>
+<script type="module" src="./supa.js"></script>
+<script type="module">
+  const form = document.getElementById('loginForm');
+  const err  = document.getElementById('err');
+
+  (async () => {
+    const { data: { user } = {} } = await window.supa.auth.getUser();
+    if (user) location.href = './admin.html';
+  })();
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault(); err.textContent = '';
+
+    let email = document.getElementById('email').value.trim();
+    let pw    = document.getElementById('password').value;
+
+    // DEV shortcut: admin/password → dev Supabase user
+    if (email === 'admin' && pw === 'password') {
+      email = 'dev-admin@example.com'; //dev-admin@example.com
+      pw    = 'password'; //password
+    }
+
+    const { error } = await window.supa.auth.signInWithPassword({ email, password: pw });
+    if (error) err.textContent = error.message;
+    else location.href = './admin.html';
+  });
+</script>
+
 </body>
 </html>
