@@ -47,7 +47,7 @@ def init_db():
 
 @app.route('/api/programs', methods=['GET'])
 def get_programs():
-    """Return all company programs (for display in frontend)"""
+    """Return all company programs (for app usage)"""
     conn = get_db()
     rows = conn.execute("""
         SELECT
