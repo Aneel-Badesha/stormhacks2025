@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panel</title>
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+  <div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+      <div>
+        <h1 id="companyName">🎯 Loading...</h1>
+        <p class="subtitle">Admin Dashboard</p>
+      </div>
+      <button class="secondary" onclick="logout()">Sign Out</button>
+    </div>
+
+    <div class="stats" id="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value" id="totalUsers">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Scans</div>
+        <div class="stat-value" id="totalScans">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Close to Reward</div>
+        <div class="stat-value" id="closeToReward">-</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Users & Rewards</h2>
+      <div class="search-box">
+        <input type="text" id="searchUsers" placeholder="Search by name, email, or phone...">
+      </div>
+      <table id="usersTable">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Progress</th>
+            <th>Score</th>
+            <th>Last Scan</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="usersBody">
+          <tr>
+            <td colspan="7" class="empty-state">Select a company to view users</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Quick Actions</h2>
+      <button onclick="simulateScan()">🔄 Simulate Random Scan</button>
+      <button class="secondary" onclick="loadData()">♻️ Refresh Data</button>
+    </div>
+  </div>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
