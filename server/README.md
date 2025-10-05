@@ -15,7 +15,6 @@ Flask-based backend server for the Tapply loyalty rewards platform. Provides RES
 - [Authentication](#authentication)
 - [Project Structure](#project-structure)
 - [Development](#development)
-- [Testing](#testing)
 
 ## Features
 

@@ -9,13 +9,10 @@ Replace physical punch cards with NFC-powered digital loyalty. Customers tap to 
 - [Executive Summary](#executive-summary)
 - [The Problem](#the-problem)
 - [Our Solution](#our-solution)
-- [Architecture](#architecture)
 - [Quick Start](#quick-start)
 - [Repository Structure](#repository-structure)
 - [Technology Stack](#technology-stack)
 - [Features](#features)
-- [Development](#development)
-- [Team](#team)
 
 
 
