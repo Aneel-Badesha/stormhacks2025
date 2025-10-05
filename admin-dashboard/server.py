@@ -45,6 +45,37 @@ def init_db():
     conn.close()
     print("✅ Database initialized")
 
+@app.route('/api/programs', methods=['GET'])
+def get_programs():
+    """Return all company programs (for display in frontend)"""
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT
+            c.id,
+            c.name,
+            c.description AS companyDescription,
+            c.category,
+            c.color,
+            p.max_punches AS maxPunches,
+            p.description AS programDescription
+        FROM companies c
+        LEFT JOIN programs p ON p.company_id = c.id
+    """).fetchall()
+    conn.close()
+    # Fallbacks for missing columns
+    programs = []
+    for row in rows:
+        programs.append({
+            'id': str(row['id']),
+            'name': row['name'],
+            'category': row.get('category', 'Other'),
+            'color': row.get('color', '#888'),
+            'maxPunches': row.get('maxPunches', 10),
+            'companyDescription': row.get('companyDescription', ''),
+            'programDescription': row.get('programDescription', ''),
+        })
+    return jsonify(programs)
+
 # ============================================
 # Authentication Routes (email-only)
 # ============================================
