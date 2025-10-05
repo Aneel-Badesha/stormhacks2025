@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Flask server for SQLite-based loyalty rewards with authentication
+Flask server for SQLite-based loyalty rewards with authentication (email-only)
 """
+import os
 import sqlite3
 import bcrypt
 import secrets
@@ -9,9 +10,23 @@ from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_from_directory, session
 from flask_cors import CORS
 
+# ----------------------------------
+# App & session cookie configuration
+# ----------------------------------
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)  # For session management
-CORS(app, supports_credentials=True)
+app.secret_key = secrets.token_hex(32) #stable = persistant sessions 
+
+# Same-origin local dev over HTTP:
+app.config.update(
+    SESSION_COOKIE_SAMESITE="Lax",  # good for same-origin calls
+    SESSION_COOKIE_SECURE=False,# true for HTTPS
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+)
+
+# CORS (only needed if you ever call /api from a different origin)
+CORS(app, supports_credentials=True, resources={
+    r"/api/*": {"origins": ["http://localhost:5000", "http://127.0.0.1:5000"]}
+})
 
 DB_PATH = 'rewards.db'
 
@@ -31,51 +46,71 @@ def init_db():
     print("✅ Database initialized")
 
 # ============================================
-# Authentication Routes
+# Authentication Routes (email-only)
 # ============================================
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    """Company login endpoint"""
-    data = request.json
-    login_email = data.get('company', '').strip().lower()
-    password = data.get('password', '')
+    """Company login via EMAIL ONLY (bcrypt)"""
+    data = request.get_json(silent=True) or {}
+    raw_email = (data.get('email') or '').strip()
+    email = " ".join(raw_email.split()).lower()
+    password = data.get('password') or ''
 
-    if not login_email or not password:
-        return jsonify({'error': 'Company login and password required'}), 400
+    if not email or not password:
+        return jsonify({'error': 'Email and password required'}), 400
+
+    import os
+    print("LOGIN hitting DB:", os.path.abspath(DB_PATH))
+    print("LOGIN attempt email:", repr(email))
 
     conn = get_db()
-    
-    # Find company by login_email (case-insensitive)
+    conn.row_factory = sqlite3.Row
     company = conn.execute(
-        'SELECT * FROM companies WHERE LOWER(login_email) = ?',
-        (login_email,)
+        'SELECT id, name, description, login_email, password_hash '
+        'FROM companies WHERE login_email = ? COLLATE NOCASE',
+        (email,)
     ).fetchone()
-    
     conn.close()
 
+    # SAFE debug print
+    if company:
+        ph = company['password_hash']
+        d = dict(company)
+        d['password_hash'] = (ph[:10] + '…') if isinstance(ph, str) else '<non-str>'
+        print("LOGIN found:", d)
+    else:
+        print("LOGIN no row found for:", repr(email))
+
     if not company:
-        return jsonify({'error': 'Invalid credentials'}), 401
+        return jsonify({'error': 'Invalid email or password'}), 401
 
-    # Verify password
-    stored_hash = company['password_hash'].encode('utf-8')
-    if not bcrypt.checkpw(password.encode('utf-8'), stored_hash):
-        return jsonify({'error': 'Invalid credentials'}), 401
+    try:
+        ok = bcrypt.checkpw(password.encode('utf-8'),
+                            company['password_hash'].encode('utf-8'))
+    except Exception as e:
+        print("bcrypt error:", e)
+        return jsonify({'error': 'Server password check error'}), 500
 
-    # Create session
+    if not ok:
+        return jsonify({'error': 'Invalid email or password'}), 401
+
+    session.clear()
     session['company_id'] = company['id']
     session['company_name'] = company['name']
     session.permanent = True
-    app.permanent_session_lifetime = timedelta(days=7)
 
+    print("LOGIN OK → session:", dict(session))
     return jsonify({
         'success': True,
         'company': {
             'id': company['id'],
             'name': company['name'],
-            'description': company['description']
+            'description': company['description'],
         }
     })
+
+
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -85,10 +120,9 @@ def logout():
 
 @app.route('/api/auth/session', methods=['GET'])
 def get_session():
-    """Get current session"""
+    """Get current session (return 200 even if not authenticated for nicer UX)"""
     if 'company_id' not in session:
-        return jsonify({'authenticated': False}), 401
-    
+        return jsonify({'authenticated': False}), 200
     return jsonify({
         'authenticated': True,
         'company': {
@@ -117,19 +151,16 @@ def get_stats():
     company_id = session['company_id']
     conn = get_db()
     
-    # Total users with rewards at this company
     total_users = conn.execute(
         'SELECT COUNT(DISTINCT user_id) as count FROM rewards WHERE company_id = ?',
         (company_id,)
     ).fetchone()['count']
     
-    # Total scans (sum of all scores)
     total_scans = conn.execute(
         'SELECT COALESCE(SUM(score), 0) as total FROM rewards WHERE company_id = ?',
         (company_id,)
     ).fetchone()['total']
     
-    # Users close to reward (score >= 8)
     close_to_reward = conn.execute(
         'SELECT COUNT(*) as count FROM rewards WHERE company_id = ? AND score >= target_score * 0.8',
         (company_id,)
@@ -181,7 +212,7 @@ def add_scan():
     if auth_error:
         return auth_error
     
-    data = request.json
+    data = request.get_json(silent=True) or {}
     user_id = data.get('user_id')
     company_id = session['company_id']
     
@@ -189,23 +220,20 @@ def add_scan():
         return jsonify({'error': 'user_id required'}), 400
     
     conn = get_db()
-    
-    # Check if reward exists
     existing = conn.execute(
         'SELECT id, score, target_score FROM rewards WHERE user_id = ? AND company_id = ?',
         (user_id, company_id)
     ).fetchone()
     
     if existing:
-        # Increment score
         new_score = existing['score'] + 1
+        now_iso = datetime.now().isoformat()
         conn.execute(
             'UPDATE rewards SET score = ?, last_scan_at = ?, updated_at = ? WHERE id = ?',
-            (new_score, datetime.now().isoformat(), datetime.now().isoformat(), existing['id'])
+            (new_score, now_iso, now_iso, existing['id'])
         )
         reward_earned = new_score >= existing['target_score']
     else:
-        # Create new reward
         conn.execute(
             'INSERT INTO rewards (user_id, company_id, score, last_scan_at) VALUES (?, ?, 1, ?)',
             (user_id, company_id, datetime.now().isoformat())
@@ -224,7 +252,7 @@ def reset_reward():
     if auth_error:
         return auth_error
     
-    data = request.json
+    data = request.get_json(silent=True) or {}
     user_id = data.get('user_id')
     company_id = session['company_id']
     
@@ -258,16 +286,8 @@ def serve_static(path):
 # ============================================
 
 if __name__ == '__main__':
-    import os
-    
     # Initialize DB if it doesn't exist
     if not os.path.exists(DB_PATH):
-        print("📦 Creating database...")
         init_db()
-    
-    print("🚀 Starting server on http://localhost:5000")
-    print("📊 Login page: http://localhost:5000/")
-    print("🔐 Default credentials:")
-    print("   - Company: coffee (or 'Coffee Shop')")
-    print("   - Password: password")
-    app.run(debug=True, port=5000)
+    print("Starting app")
+    app.run(debug=True, host="127.0.0.1", port=5000)

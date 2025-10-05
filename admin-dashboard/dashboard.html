@@ -220,16 +220,18 @@
     // Initialize - check auth and load company
     async function init() {
       try {
-        const res = await fetch(`${API_BASE}/auth/session`, {
+        const res = await fetch('/api/auth/session', {
           credentials: 'include'
         });
 
-        if (!res.ok) {
-          window.location.href = './index.html';
+        const data = await res.json().catch(() => ({ authenticated: false }));
+        
+        // Check if actually authenticated
+        if (!res.ok || !data.authenticated || !data.company) {
+          location.replace('./index.html');
           return;
         }
 
-        const data = await res.json();
         currentCompanyId = data.company.id;
         currentCompanyName = data.company.name;
         document.getElementById('companyName').textContent = `🎯 ${data.company.name}`;
@@ -238,17 +240,17 @@
         loadData();
       } catch (err) {
         console.error('Auth error:', err);
-        window.location.href = './index.html';
+        location.replace('./index.html');
       }
     }
 
     // Logout function
     window.logout = async () => {
-      await fetch(`${API_BASE}/auth/logout`, {
+      await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include'
       });
-      window.location.href = './index.html';
+      location.replace('./index.html');
     };
 
     // Load stats and users for current company
@@ -257,7 +259,7 @@
       
       try {
         // Load stats
-        const statsRes = await fetch(`${API_BASE}/stats`, {
+        const statsRes = await fetch('/api/stats', {
           credentials: 'include'
         });
         const stats = await statsRes.json();
@@ -267,7 +269,7 @@
         document.getElementById('closeToReward').textContent = stats.close_to_reward;
         
         // Load users
-        const usersRes = await fetch(`${API_BASE}/users`, {
+        const usersRes = await fetch('/api/users', {
           credentials: 'include'
         });
         allUsers = await usersRes.json();
@@ -336,7 +338,7 @@
     // Add a scan (increment punch count)
     window.addScan = async (userId) => {
       try {
-        const res = await fetch(`${API_BASE}/rewards/scan`, {
+        const res = await fetch('/api/rewards/scan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -358,7 +360,7 @@
       if (!confirm('Reset this user\'s reward score to 0?')) return;
       
       try {
-        const res = await fetch(`${API_BASE}/rewards/reset`, {
+        const res = await fetch('/api/rewards/reset', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

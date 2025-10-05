@@ -46,27 +46,7 @@ BEGIN
   UPDATE rewards SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
 
--- ---------- Sample data with bcrypt password hashes ----------
--- Default password for all: "password"
--- Hash generated with: bcrypt.hashpw(b"password", bcrypt.gensalt())
-INSERT INTO companies (id, name, description, login_email, password_hash) VALUES
-  (1, 'Coffee Shop', 'Local coffee shop loyalty program', 'coffee@login.local',  '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvXZm'),
-  (2, 'Pizza Place', 'Pizza rewards program',              'pizza@login.local',   '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvXZm'),
-  (3, 'Bookstore',   'Book lover rewards',                 'books@login.local',   '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvXZm');
-
-INSERT INTO users (id, email, phone, full_name) VALUES
-  (1, 'alice@example.com',  '+1234567890', 'Alice Smith'),
-  (2, 'bob@example.com',    '+1234567891', 'Bob Johnson'),
-  (3, 'charlie@example.com','+1234567892', 'Charlie Brown');
-
-INSERT INTO rewards (user_id, company_id, score, target_score, last_scan_at) VALUES
-  (1, 1, 5, 10, datetime('now', '-2 days')),
-  (1, 2, 8, 10, datetime('now', '-1 day')),
-  (2, 1, 3, 10, datetime('now', '-3 days')),
-  (2, 3,10, 10, datetime('now', '-1 hour')),
-  (3, 1, 7, 10, datetime('now', '-5 hours'));
-
--- Helpful indexes
+-- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_rewards_user    ON rewards(user_id);
 CREATE INDEX IF NOT EXISTS idx_rewards_company ON rewards(company_id);
 CREATE INDEX IF NOT EXISTS idx_rewards_score   ON rewards(score);
