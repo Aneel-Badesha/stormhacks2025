@@ -2,67 +2,354 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Admin Login</title>
-  <link rel="stylesheet" href="./app.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panel</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    h1 {
+      margin: 0 0 0.5rem 0;
+      font-size: 2rem;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 2rem;
+    }
+    .company-selector {
+      margin-bottom: 2rem;
+    }
+    select {
+      padding: 0.75rem;
+      font-size: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: white;
+      min-width: 250px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .stat-label {
+      font-size: 0.875rem;
+      color: #666;
+      margin-bottom: 0.5rem;
+    }
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #111;
+    }
+    .section {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+    .section h2 {
+      margin: 0 0 1rem 0;
+      font-size: 1.25rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      text-align: left;
+      padding: 0.75rem;
+      border-bottom: 2px solid #eee;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #666;
+    }
+    td {
+      padding: 0.75rem;
+      border-bottom: 1px solid #eee;
+    }
+    tr:hover {
+      background: #f9f9f9;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #eee;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4CAF50, #8BC34A);
+      transition: width 0.3s ease;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .badge-warning {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .badge-info {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    button.secondary {
+      background: #6c757d;
+    }
+    button.secondary:hover {
+      background: #545b62;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #999;
+    }
+    .search-box {
+      margin-bottom: 1rem;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+  </style>
 </head>
 <body>
-  <main class="card">
-    <h1>Merchant Admin</h1>
-    <form id="loginForm">
-      <input id="email" placeholder="Email" autocomplete="username" />
-      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
-      <button type="submit">Sign in</button>
-      <p id="err" class="err"></p>
-    </form>
-  </main>
+  <div class="container">
+    <h1>🎯 Loyalty Rewards Admin</h1>
+    <p class="subtitle">SQLite Proof of Concept</p>
 
-  <!-- <script src="./config.js"></script>
-  <script type="module" src="./supa.js"></script>
-  <script type="module">
-    const form = document.getElementById('loginForm');
-    const err  = document.getElementById('err');
+    <div class="company-selector">
+      <label for="companySelect"><strong>Select Company:</strong></label><br>
+      <select id="companySelect">
+        <option value="">Loading...</option>
+      </select>
+    </div>
 
-    (async () => {
-      if (await auth.user()) location.href = './admin.html';
-    })();
+    <div class="stats" id="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value" id="totalUsers">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Scans</div>
+        <div class="stat-value" id="totalScans">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Close to Reward</div>
+        <div class="stat-value" id="closeToReward">-</div>
+      </div>
+    </div>
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault(); err.textContent = '';
-      const email = document.getElementById('email').value.trim();
-      const pw    = document.getElementById('password').value;
-      const { error } = await auth.signIn(email, pw);
-      if (error) err.textContent = error.message;
-      else location.href = './admin.html';
-    });
-  </script> -->
-  <script src="./config.js"></script>
-<script type="module" src="./supa.js"></script>
-<script type="module">
-  const form = document.getElementById('loginForm');
-  const err  = document.getElementById('err');
+    <div class="section">
+      <h2>Users & Rewards</h2>
+      <div class="search-box">
+        <input type="text" id="searchUsers" placeholder="Search by name, email, or phone...">
+      </div>
+      <table id="usersTable">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Progress</th>
+            <th>Score</th>
+            <th>Last Scan</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="usersBody">
+          <tr>
+            <td colspan="7" class="empty-state">Select a company to view users</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-  (async () => {
-    const { data: { user } = {} } = await window.supa.auth.getUser();
-    if (user) location.href = './admin.html';
-  })();
+    <div class="section">
+      <h2>Quick Actions</h2>
+      <button onclick="simulateScan()">🔄 Simulate Random Scan</button>
+      <button class="secondary" onclick="loadData()">♻️ Refresh Data</button>
+    </div>
+  </div>
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault(); err.textContent = '';
+  <script>
+    const API_BASE = 'http://localhost:5000/api';
+    let currentCompanyId = null;
+    let allUsers = [];
 
-    let email = document.getElementById('email').value.trim();
-    let pw    = document.getElementById('password').value;
-
-    // DEV shortcut: admin/password → dev Supabase user
-    if (email === 'admin' && pw === 'password') {
-      email = 'dev-admin@example.com'; //dev-admin@example.com
-      pw    = 'password'; //password
+    // Load companies on page load
+    async function loadCompanies() {
+      const res = await fetch(`${API_BASE}/companies`);
+      const companies = await res.json();
+      
+      const select = document.getElementById('companySelect');
+      select.innerHTML = companies.map(c => 
+        `<option value="${c.id}">${c.name}</option>`
+      ).join('');
+      
+      if (companies.length > 0) {
+        currentCompanyId = companies[0].id;
+        select.value = currentCompanyId;
+        loadData();
+      }
     }
 
-    const { error } = await window.supa.auth.signInWithPassword({ email, password: pw });
-    if (error) err.textContent = error.message;
-    else location.href = './admin.html';
-  });
-</script>
+    // Load stats and users for selected company
+    async function loadData() {
+      if (!currentCompanyId) return;
+      
+      // Load stats
+      const statsRes = await fetch(`${API_BASE}/companies/${currentCompanyId}/stats`);
+      const stats = await statsRes.json();
+      
+      document.getElementById('totalUsers').textContent = stats.total_users;
+      document.getElementById('totalScans').textContent = stats.total_scans;
+      document.getElementById('closeToReward').textContent = stats.close_to_reward;
+      
+      // Load users
+      const usersRes = await fetch(`${API_BASE}/companies/${currentCompanyId}/users`);
+      allUsers = await usersRes.json();
+      
+      renderUsers(allUsers);
+    }
 
+    // Render users table
+    function renderUsers(users) {
+      const tbody = document.getElementById('usersBody');
+      
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No users found</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = users.map(u => {
+        const progress = (u.score / u.target_score) * 100;
+        const isComplete = u.score >= u.target_score;
+        const isClose = u.score >= u.target_score * 0.8;
+        
+        let badge = '';
+        if (isComplete) badge = '<span class="badge badge-success">Reward Ready!</span>';
+        else if (isClose) badge = '<span class="badge badge-warning">Almost there</span>';
+        else badge = '<span class="badge badge-info">In Progress</span>';
+        
+        const lastScan = u.last_scan_at 
+          ? new Date(u.last_scan_at).toLocaleString()
+          : 'Never';
+        
+        return `
+          <tr>
+            <td><strong>${u.full_name || 'Unknown'}</strong></td>
+            <td>${u.email}</td>
+            <td>${u.phone || '-'}</td>
+            <td>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: ${Math.min(progress, 100)}%"></div>
+              </div>
+            </td>
+            <td>${u.score} / ${u.target_score} ${badge}</td>
+            <td>${lastScan}</td>
+            <td>
+              <button onclick="addScan(${u.id})">+1 Scan</button>
+              ${isComplete ? `<button class="secondary" onclick="resetReward(${u.id})">Reset</button>` : ''}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Search users
+    document.getElementById('searchUsers').addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      const filtered = allUsers.filter(u => 
+        (u.full_name || '').toLowerCase().includes(query) ||
+        u.email.toLowerCase().includes(query) ||
+        (u.phone || '').toLowerCase().includes(query)
+      );
+      renderUsers(filtered);
+    });
+
+    // Add a scan
+    async function addScan(userId) {
+      await fetch(`${API_BASE}/rewards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, company_id: currentCompanyId })
+      });
+      loadData();
+    }
+
+    // Reset reward
+    async function resetReward(userId) {
+      if (!confirm('Reset this user\'s reward score to 0?')) return;
+      
+      await fetch(`${API_BASE}/rewards/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, company_id: currentCompanyId })
+      });
+      loadData();
+    }
+
+    // Simulate a random scan
+    async function simulateScan() {
+      if (allUsers.length === 0) {
+        alert('No users to scan!');
+        return;
+      }
+      
+      const randomUser = allUsers[Math.floor(Math.random() * allUsers.length)];
+      await addScan(randomUser.id);
+    }
+
+    // Company selector change
+    document.getElementById('companySelect').addEventListener('change', (e) => {
+      currentCompanyId = parseInt(e.target.value);
+      loadData();
+    });
+
+    // Initialize
+    loadCompanies();
+  </script>
 </body>
 </html>
