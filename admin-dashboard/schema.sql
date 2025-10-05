@@ -46,12 +46,13 @@ BEGIN
   UPDATE rewards SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
 
--- ---------- Sample data (replace password_hash values with real bcrypt/argon2 hashes) ----------
--- For demo only: the password_hash strings below are placeholders.
+-- ---------- Sample data with bcrypt password hashes ----------
+-- Default password for all: "password"
+-- Hash generated with: bcrypt.hashpw(b"password", bcrypt.gensalt())
 INSERT INTO companies (id, name, description, login_email, password_hash) VALUES
-  (1, 'Coffee Shop', 'Local coffee shop loyalty program', 'coffee@login.local',  'REPLACE_WITH_BCRYPT_HASH'),
-  (2, 'Pizza Place', 'Pizza rewards program',              'pizza@login.local',   'REPLACE_WITH_BCRYPT_HASH'),
-  (3, 'Bookstore',   'Book lover rewards',                 'books@login.local',   'REPLACE_WITH_BCRYPT_HASH');
+  (1, 'Coffee Shop', 'Local coffee shop loyalty program', 'coffee@login.local',  '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvXZm'),
+  (2, 'Pizza Place', 'Pizza rewards program',              'pizza@login.local',   '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvXZm'),
+  (3, 'Bookstore',   'Book lover rewards',                 'books@login.local',   '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvXZm');
 
 INSERT INTO users (id, email, phone, full_name) VALUES
   (1, 'alice@example.com',  '+1234567890', 'Alice Smith'),

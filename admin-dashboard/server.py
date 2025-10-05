@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """
-Simple Flask server for SQLite-based loyalty rewards POC
+Flask server for SQLite-based loyalty rewards with authentication
 """
 import sqlite3
-import json
-from datetime import datetime
-from flask import Flask, jsonify, request, send_from_directory
+import bcrypt
+import secrets
+from datetime import datetime, timedelta
+from flask import Flask, jsonify, request, send_from_directory, session
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+app.secret_key = secrets.token_hex(32)  # For session management
+CORS(app, supports_credentials=True)
 
 DB_PATH = 'rewards.db'
 
 def get_db():
     """Get database connection"""
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Return rows as dicts
+    conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
@@ -26,33 +28,93 @@ def init_db():
         conn.executescript(f.read())
     conn.commit()
     conn.close()
-    print("Database initialized")
+    print("✅ Database initialized")
 
 # ============================================
-# API Routes
+# Authentication Routes
 # ============================================
 
-@app.route('/')
-def index():
-    """Serve index.html"""
-    return send_from_directory('.', 'index.html')
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Company login endpoint"""
+    data = request.json
+    login_email = data.get('company', '').strip().lower()
+    password = data.get('password', '')
 
-@app.route('/<path:path>')
-def static_files(path):
-    """Serve static files"""
-    return send_from_directory('.', path)
+    if not login_email or not password:
+        return jsonify({'error': 'Company login and password required'}), 400
 
-@app.route('/api/companies', methods=['GET'])
-def get_companies():
-    """Get all companies"""
     conn = get_db()
-    companies = conn.execute('SELECT * FROM companies ORDER BY name').fetchall()
+    
+    # Find company by login_email (case-insensitive)
+    company = conn.execute(
+        'SELECT * FROM companies WHERE LOWER(login_email) = ?',
+        (login_email,)
+    ).fetchone()
+    
     conn.close()
-    return jsonify([dict(c) for c in companies])
 
-@app.route('/api/companies/<int:company_id>/stats', methods=['GET'])
-def get_company_stats(company_id):
-    """Get stats for a specific company"""
+    if not company:
+        return jsonify({'error': 'Invalid credentials'}), 401
+
+    # Verify password
+    stored_hash = company['password_hash'].encode('utf-8')
+    if not bcrypt.checkpw(password.encode('utf-8'), stored_hash):
+        return jsonify({'error': 'Invalid credentials'}), 401
+
+    # Create session
+    session['company_id'] = company['id']
+    session['company_name'] = company['name']
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(days=7)
+
+    return jsonify({
+        'success': True,
+        'company': {
+            'id': company['id'],
+            'name': company['name'],
+            'description': company['description']
+        }
+    })
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    """Logout endpoint"""
+    session.clear()
+    return jsonify({'success': True})
+
+@app.route('/api/auth/session', methods=['GET'])
+def get_session():
+    """Get current session"""
+    if 'company_id' not in session:
+        return jsonify({'authenticated': False}), 401
+    
+    return jsonify({
+        'authenticated': True,
+        'company': {
+            'id': session['company_id'],
+            'name': session['company_name']
+        }
+    })
+
+# ============================================
+# Protected API Routes (require authentication)
+# ============================================
+
+def require_auth():
+    """Check if user is authenticated"""
+    if 'company_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    return None
+
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    """Get stats for logged-in company"""
+    auth_error = require_auth()
+    if auth_error:
+        return auth_error
+    
+    company_id = session['company_id']
     conn = get_db()
     
     # Total users with rewards at this company
@@ -69,7 +131,7 @@ def get_company_stats(company_id):
     
     # Users close to reward (score >= 8)
     close_to_reward = conn.execute(
-        'SELECT COUNT(*) as count FROM rewards WHERE company_id = ? AND score >= 8',
+        'SELECT COUNT(*) as count FROM rewards WHERE company_id = ? AND score >= target_score * 0.8',
         (company_id,)
     ).fetchone()['count']
     
@@ -81,9 +143,14 @@ def get_company_stats(company_id):
         'close_to_reward': close_to_reward
     })
 
-@app.route('/api/companies/<int:company_id>/users', methods=['GET'])
-def get_company_users(company_id):
-    """Get all users with rewards at this company"""
+@app.route('/api/users', methods=['GET'])
+def get_users():
+    """Get all users with rewards at logged-in company"""
+    auth_error = require_auth()
+    if auth_error:
+        return auth_error
+    
+    company_id = session['company_id']
     conn = get_db()
     
     query = '''
@@ -107,44 +174,19 @@ def get_company_users(company_id):
     
     return jsonify([dict(u) for u in users])
 
-@app.route('/api/users', methods=['GET'])
-def get_users():
-    """Get all users"""
-    conn = get_db()
-    users = conn.execute('SELECT * FROM users ORDER BY full_name').fetchall()
-    conn.close()
-    return jsonify([dict(u) for u in users])
-
-@app.route('/api/users/<int:user_id>/rewards', methods=['GET'])
-def get_user_rewards(user_id):
-    """Get all rewards for a specific user"""
-    conn = get_db()
-    
-    query = '''
-        SELECT 
-            r.*,
-            c.name as company_name,
-            c.description as company_description
-        FROM rewards r
-        JOIN companies c ON r.company_id = c.id
-        WHERE r.user_id = ?
-        ORDER BY r.score DESC
-    '''
-    
-    rewards = conn.execute(query, (user_id,)).fetchall()
-    conn.close()
-    
-    return jsonify([dict(r) for r in rewards])
-
-@app.route('/api/rewards', methods=['POST'])
+@app.route('/api/rewards/scan', methods=['POST'])
 def add_scan():
     """Add a scan (increment score)"""
+    auth_error = require_auth()
+    if auth_error:
+        return auth_error
+    
     data = request.json
     user_id = data.get('user_id')
-    company_id = data.get('company_id')
+    company_id = session['company_id']
     
-    if not user_id or not company_id:
-        return jsonify({'error': 'user_id and company_id required'}), 400
+    if not user_id:
+        return jsonify({'error': 'user_id required'}), 400
     
     conn = get_db()
     
@@ -178,12 +220,16 @@ def add_scan():
 @app.route('/api/rewards/reset', methods=['POST'])
 def reset_reward():
     """Reset a user's reward score (after redemption)"""
+    auth_error = require_auth()
+    if auth_error:
+        return auth_error
+    
     data = request.json
     user_id = data.get('user_id')
-    company_id = data.get('company_id')
+    company_id = session['company_id']
     
-    if not user_id or not company_id:
-        return jsonify({'error': 'user_id and company_id required'}), 400
+    if not user_id:
+        return jsonify({'error': 'user_id required'}), 400
     
     conn = get_db()
     conn.execute(
@@ -196,6 +242,18 @@ def reset_reward():
     return jsonify({'success': True})
 
 # ============================================
+# Static file serving
+# ============================================
+
+@app.route('/')
+def serve_index():
+    return send_from_directory('.', 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory('.', path)
+
+# ============================================
 # Main
 # ============================================
 
@@ -204,9 +262,12 @@ if __name__ == '__main__':
     
     # Initialize DB if it doesn't exist
     if not os.path.exists(DB_PATH):
-        print("Creating database...")
+        print("📦 Creating database...")
         init_db()
     
-    print("Starting server on http://localhost:5000")
-    print("Admin dashboard: http://localhost:5000/")
+    print("🚀 Starting server on http://localhost:5000")
+    print("📊 Login page: http://localhost:5000/")
+    print("🔐 Default credentials:")
+    print("   - Company: coffee (or 'Coffee Shop')")
+    print("   - Password: password")
     app.run(debug=True, port=5000)

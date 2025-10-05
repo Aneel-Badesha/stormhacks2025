@@ -3,353 +3,207 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Panel</title>
+  <title>Company Login</title>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f5f5f5;
-      color: #333;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
     }
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 2rem;
+    .login-card {
+      background: white;
+      padding: 2.5rem;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 400px;
+      width: 100%;
     }
     h1 {
       margin: 0 0 0.5rem 0;
-      font-size: 2rem;
+      font-size: 1.75rem;
+      color: #333;
     }
     .subtitle {
       color: #666;
       margin-bottom: 2rem;
+      font-size: 0.9rem;
     }
-    .company-selector {
-      margin-bottom: 2rem;
+    .form-group {
+      margin-bottom: 1.5rem;
     }
-    select {
-      padding: 0.75rem;
-      font-size: 1rem;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background: white;
-      min-width: 250px;
-    }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }
-    .stat-card {
-      background: white;
-      padding: 1.5rem;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .stat-label {
-      font-size: 0.875rem;
-      color: #666;
+    label {
+      display: block;
       margin-bottom: 0.5rem;
-    }
-    .stat-value {
-      font-size: 2rem;
-      font-weight: bold;
-      color: #111;
-    }
-    .section {
-      background: white;
-      padding: 1.5rem;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      margin-bottom: 2rem;
-    }
-    .section h2 {
-      margin: 0 0 1rem 0;
-      font-size: 1.25rem;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th {
-      text-align: left;
-      padding: 0.75rem;
-      border-bottom: 2px solid #eee;
+      color: #555;
       font-weight: 600;
       font-size: 0.875rem;
-      color: #666;
     }
-    td {
-      padding: 0.75rem;
-      border-bottom: 1px solid #eee;
-    }
-    tr:hover {
-      background: #f9f9f9;
-    }
-    .progress-bar {
+    input {
       width: 100%;
-      height: 8px;
-      background: #eee;
-      border-radius: 4px;
-      overflow: hidden;
+      padding: 0.875rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 0.2s;
     }
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #4CAF50, #8BC34A);
-      transition: width 0.3s ease;
-    }
-    .badge {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    .badge-success {
-      background: #d4edda;
-      color: #155724;
-    }
-    .badge-warning {
-      background: #fff3cd;
-      color: #856404;
-    }
-    .badge-info {
-      background: #d1ecf1;
-      color: #0c5460;
+    input:focus {
+      outline: none;
+      border-color: #667eea;
     }
     button {
-      padding: 0.5rem 1rem;
+      width: 100%;
+      padding: 1rem;
       border: none;
-      border-radius: 6px;
-      background: #007bff;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
+      font-size: 1rem;
+      font-weight: 600;
       cursor: pointer;
-      font-size: 0.875rem;
+      transition: transform 0.2s, box-shadow 0.2s;
     }
     button:hover {
-      background: #0056b3;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
     }
-    button.secondary {
-      background: #6c757d;
+    button:active {
+      transform: translateY(0);
     }
-    button.secondary:hover {
-      background: #545b62;
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
     }
-    .empty-state {
-      text-align: center;
-      padding: 3rem;
-      color: #999;
-    }
-    .search-box {
-      margin-bottom: 1rem;
-    }
-    .search-box input {
-      width: 100%;
+    .error {
+      background: #fee;
+      color: #c33;
       padding: 0.75rem;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 1rem;
+      border-radius: 6px;
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      display: none;
+    }
+    .error.show {
+      display: block;
+    }
+    .hint {
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #eee;
+      color: #999;
+      font-size: 0.8rem;
+      text-align: center;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🎯 Loyalty Rewards Admin</h1>
-    <p class="subtitle">SQLite Proof of Concept</p>
-
-    <div class="company-selector">
-      <label for="companySelect"><strong>Select Company:</strong></label><br>
-      <select id="companySelect">
-        <option value="">Loading...</option>
-      </select>
-    </div>
-
-    <div class="stats" id="stats">
-      <div class="stat-card">
-        <div class="stat-label">Total Users</div>
-        <div class="stat-value" id="totalUsers">-</div>
+  <div class="login-card">
+    <h1>🏢 Company Login</h1>
+    <p class="subtitle">Enter your company credentials to access the admin dashboard</p>
+    
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="company">Email</label>
+        <input 
+          type="email" 
+          id="company" 
+          placeholder="test@email.com" 
+          autocomplete="username"
+          required
+        />
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Total Scans</div>
-        <div class="stat-value" id="totalScans">-</div>
+      
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input 
+          type="password" 
+          id="password" 
+          placeholder="Enter password" 
+          autocomplete="current-password"
+          required
+        />
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Close to Reward</div>
-        <div class="stat-value" id="closeToReward">-</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h2>Users & Rewards</h2>
-      <div class="search-box">
-        <input type="text" id="searchUsers" placeholder="Search by name, email, or phone...">
-      </div>
-      <table id="usersTable">
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Progress</th>
-            <th>Score</th>
-            <th>Last Scan</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="usersBody">
-          <tr>
-            <td colspan="7" class="empty-state">Select a company to view users</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="section">
-      <h2>Quick Actions</h2>
-      <button onclick="simulateScan()">🔄 Simulate Random Scan</button>
-      <button class="secondary" onclick="loadData()">♻️ Refresh Data</button>
+      
+      <button type="submit" id="loginBtn">Sign In</button>
+      
+      <div class="error" id="error"></div>
+    </form>
+    
+    <div class="hint">
+      Demo: test@email.com / password
     </div>
   </div>
 
   <script>
     const API_BASE = 'http://localhost:5000/api';
-    let currentCompanyId = null;
-    let allUsers = [];
+    const form = document.getElementById('loginForm');
+    const errorDiv = document.getElementById('error');
+    const loginBtn = document.getElementById('loginBtn');
 
-    // Load companies on page load
-    async function loadCompanies() {
-      const res = await fetch(`${API_BASE}/companies`);
-      const companies = await res.json();
-      
-      const select = document.getElementById('companySelect');
-      select.innerHTML = companies.map(c => 
-        `<option value="${c.id}">${c.name}</option>`
-      ).join('');
-      
-      if (companies.length > 0) {
-        currentCompanyId = companies[0].id;
-        select.value = currentCompanyId;
-        loadData();
+    // Check if already logged in
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/session`, {
+          credentials: 'include'
+        });
+        if (res.ok) {
+          window.location.href = './dashboard.html';
+        }
+      } catch (err) {
+        // Not logged in, stay on login page
       }
-    }
+    })();
 
-    // Load stats and users for selected company
-    async function loadData() {
-      if (!currentCompanyId) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
       
-      // Load stats
-      const statsRes = await fetch(`${API_BASE}/companies/${currentCompanyId}/stats`);
-      const stats = await statsRes.json();
-      
-      document.getElementById('totalUsers').textContent = stats.total_users;
-      document.getElementById('totalScans').textContent = stats.total_scans;
-      document.getElementById('closeToReward').textContent = stats.close_to_reward;
-      
-      // Load users
-      const usersRes = await fetch(`${API_BASE}/companies/${currentCompanyId}/users`);
-      allUsers = await usersRes.json();
-      
-      renderUsers(allUsers);
-    }
+      const company = document.getElementById('company').value.trim();
+      const password = document.getElementById('password').value;
 
-    // Render users table
-    function renderUsers(users) {
-      const tbody = document.getElementById('usersBody');
-      
-      if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No users found</td></tr>';
+      if (!company || !password) {
+        showError('Please enter both company name and password');
         return;
       }
-      
-      tbody.innerHTML = users.map(u => {
-        const progress = (u.score / u.target_score) * 100;
-        const isComplete = u.score >= u.target_score;
-        const isClose = u.score >= u.target_score * 0.8;
-        
-        let badge = '';
-        if (isComplete) badge = '<span class="badge badge-success">Reward Ready!</span>';
-        else if (isClose) badge = '<span class="badge badge-warning">Almost there</span>';
-        else badge = '<span class="badge badge-info">In Progress</span>';
-        
-        const lastScan = u.last_scan_at 
-          ? new Date(u.last_scan_at).toLocaleString()
-          : 'Never';
-        
-        return `
-          <tr>
-            <td><strong>${u.full_name || 'Unknown'}</strong></td>
-            <td>${u.email}</td>
-            <td>${u.phone || '-'}</td>
-            <td>
-              <div class="progress-bar">
-                <div class="progress-fill" style="width: ${Math.min(progress, 100)}%"></div>
-              </div>
-            </td>
-            <td>${u.score} / ${u.target_score} ${badge}</td>
-            <td>${lastScan}</td>
-            <td>
-              <button onclick="addScan(${u.id})">+1 Scan</button>
-              ${isComplete ? `<button class="secondary" onclick="resetReward(${u.id})">Reset</button>` : ''}
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
 
-    // Search users
-    document.getElementById('searchUsers').addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase();
-      const filtered = allUsers.filter(u => 
-        (u.full_name || '').toLowerCase().includes(query) ||
-        u.email.toLowerCase().includes(query) ||
-        (u.phone || '').toLowerCase().includes(query)
-      );
-      renderUsers(filtered);
-    });
+      // Disable button and show loading
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in...';
+      errorDiv.classList.remove('show');
 
-    // Add a scan
-    async function addScan(userId) {
-      await fetch(`${API_BASE}/rewards`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, company_id: currentCompanyId })
-      });
-      loadData();
-    }
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ company, password })
+        });
 
-    // Reset reward
-    async function resetReward(userId) {
-      if (!confirm('Reset this user\'s reward score to 0?')) return;
-      
-      await fetch(`${API_BASE}/rewards/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, company_id: currentCompanyId })
-      });
-      loadData();
-    }
+        const data = await res.json();
 
-    // Simulate a random scan
-    async function simulateScan() {
-      if (allUsers.length === 0) {
-        alert('No users to scan!');
-        return;
+        if (!res.ok) {
+          throw new Error(data.error || 'Login failed');
+        }
+
+        // Success - redirect to dashboard
+        window.location.href = './dashboard.html';
+
+      } catch (err) {
+        showError(err.message || 'Login failed. Please check your credentials.');
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Sign In';
       }
-      
-      const randomUser = allUsers[Math.floor(Math.random() * allUsers.length)];
-      await addScan(randomUser.id);
-    }
-
-    // Company selector change
-    document.getElementById('companySelect').addEventListener('change', (e) => {
-      currentCompanyId = parseInt(e.target.value);
-      loadData();
     });
 
-    // Initialize
-    loadCompanies();
+    function showError(message) {
+      errorDiv.textContent = message;
+      errorDiv.classList.add('show');
+    }
   </script>
 </body>
 </html>
