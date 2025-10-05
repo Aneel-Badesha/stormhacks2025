@@ -10,12 +10,12 @@
   ],
   "scripts": {
     "mobile": "cd mobile && npm start",
-    "backend": "cd backend && npm run dev",
+    "backend": "cd server && python server.py",
     "admin": "cd admin-dashboard && npm run dev",
-    "install-all": "npm install && npm run install-mobile && npm run install-backend && npm run install-admin",
-    "install-mobile": "cd mobile && npm install",
-    "install-backend": "cd backend && npm install",
-    "install-admin": "cd admin-dashboard && npm install"
+    "dev": "concurrently \"npm run backend\" \"npm run mobile\"",
+    "start": "npm run dev",
+    "install-all": "npm install && npm run install-mobile",
+    "install-mobile": "cd mobile && npm install"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

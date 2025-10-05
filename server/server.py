@@ -23,9 +23,22 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(days=7),
 )
 
-# CORS (only needed if you ever call /api from a different origin)
+# CORS configuration for mobile app and web admin
 CORS(app, supports_credentials=True, resources={
-    r"/api/*": {"origins": ["http://localhost:5000", "http://127.0.0.1:5000"]}
+    r"/api/*": {
+        "origins": [
+            "http://localhost:5000",
+            "http://127.0.0.1:5000",
+            "http://localhost:8081",  # Expo dev server default port
+            "http://localhost:19000", # Expo dev server alternative port
+            "http://localhost:19006", # Expo web
+            "exp://localhost:8081",   # Expo mobile app
+            "exp://localhost:19000",  # Expo mobile app alternative
+            "*"  # Allow all origins for development (remove in production)
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
 })
 
 DB_PATH = 'data/rewards.db'
@@ -101,14 +114,99 @@ def mobile_login():
     
     if not user:
         return jsonify({'error': 'User not found'}), 404
+
+    # Set mobile session
+    session.clear()
+    session['user_id'] = user['id']
+    session['user_email'] = user['email']
+    session.permanent = True
     
     return jsonify({
         'success': True,
-        'user_id': user['id'],
-        'email': user['email'],
-        'phone': user['phone'],
-        'full_name': user['full_name']
+        'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'phone': user['phone'],
+            'full_name': user['full_name']
+        }
     })
+
+@app.route('/api/mobile/auth/logout', methods=['POST'])
+def mobile_logout():
+    """Logout mobile user"""
+    session.clear()
+    return jsonify({'success': True})
+
+@app.route('/api/mobile/auth/session', methods=['GET'])
+def mobile_get_session():
+    """Get current mobile session"""
+    if 'user_id' not in session:
+        return jsonify({'authenticated': False})
+    
+    conn = get_db()
+    user = conn.execute(
+        'SELECT id, email, phone, full_name FROM users WHERE id = ?',
+        (session['user_id'],)
+    ).fetchone()
+    conn.close()
+    
+    if not user:
+        session.clear()
+        return jsonify({'authenticated': False})
+    
+    return jsonify({
+        'authenticated': True,
+        'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'phone': user['phone'],
+            'full_name': user['full_name']
+        }
+    })
+
+@app.route('/api/mobile/user/cards', methods=['GET'])
+def mobile_user_cards():
+    """Get current user's loyalty cards"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    user_id = session['user_id']
+    
+    conn = get_db()
+    cards = conn.execute('''
+        SELECT 
+            r.id,
+            r.score,
+            r.target_score,
+            r.last_scan_at,
+            r.created_at,
+            c.id as company_id,
+            c.name as company_name,
+            c.description as company_description
+        FROM rewards r
+        JOIN companies c ON r.company_id = c.id
+        WHERE r.user_id = ? AND c.is_active = 1
+        ORDER BY r.updated_at DESC
+    ''', (user_id,)).fetchall()
+    conn.close()
+    
+    cards_data = []
+    for card in cards:
+        cards_data.append({
+            'id': card['id'],
+            'score': card['score'],
+            'target_score': card['target_score'],
+            'progress': (card['score'] / card['target_score']) * 100 if card['target_score'] > 0 else 0,
+            'last_scan_at': card['last_scan_at'],
+            'created_at': card['created_at'],
+            'company': {
+                'id': card['company_id'],
+                'name': card['company_name'],
+                'description': card['company_description']
+            }
+        })
+    
+    return jsonify({'cards': cards_data})
 
 @app.route('/api/mobile/companies', methods=['GET'])
 def mobile_companies():
@@ -119,11 +217,19 @@ def mobile_companies():
     ).fetchall()
     conn.close()
     
-    return jsonify([{
+    companies_data = [{
         'id': c['id'],
         'name': c['name'],
         'description': c['description'] or ''
-    } for c in companies])
+    } for c in companies]
+    
+    return jsonify({'companies': companies_data})
+
+# Alias for programs (same as companies)
+@app.route('/api/mobile/programs', methods=['GET'])
+def mobile_programs():
+    """Alias for mobile_companies - programs and companies are the same thing"""
+    return mobile_companies()
 
 @app.route('/api/mobile/scan', methods=['POST'])
 def mobile_scan():
@@ -132,12 +238,24 @@ def mobile_scan():
     Called when user scans NFC tag at a business
     """
     data = request.get_json(silent=True) or {}
+    print(f"DEBUG: Scan request data: {data}")
+    print(f"DEBUG: Current session: {dict(session)}")
+    
     user_id = data.get('user_id')
     company_id = data.get('company_id')
     
+    # If company_id is not provided, try to get it from session (for admin dashboard)
+    if not company_id and 'company_id' in session:
+        company_id = session['company_id']
+        print(f"DEBUG: Using company_id from session: {company_id}")
+    
+    print(f"DEBUG: user_id={user_id}, company_id={company_id}")
+    
     if not user_id:
+        print("DEBUG: Missing user_id")
         return jsonify({'error': 'user_id required'}), 400
     if not company_id:
+        print("DEBUG: Missing company_id")
         return jsonify({'error': 'company_id required'}), 400
     
     conn = get_db()
@@ -169,6 +287,91 @@ def mobile_scan():
         previous_score = int(existing['score'] or 0)
         target_score = int(existing['target_score'] or 10)
         new_score = previous_score + 1
+        
+        conn.execute(
+            'UPDATE rewards SET score = ?, last_scan_at = ?, updated_at = ? WHERE id = ?',
+            (new_score, now_iso, now_iso, existing['id'])
+        )
+    else:
+        previous_score = 0
+        new_score = 1
+        target_score = 10
+        
+        conn.execute(
+            'INSERT INTO rewards (user_id, company_id, score, target_score, last_scan_at) '
+            'VALUES (?, ?, ?, ?, ?)',
+            (user_id, company_id, new_score, target_score, now_iso)
+        )
+    
+    conn.commit()
+    conn.close()
+    
+    reward_earned = new_score >= target_score
+    progress_percentage = int((new_score / target_score) * 100)
+    scans_until_reward = max(0, target_score - new_score)
+    
+    response = {
+        'success': True,
+        'user_id': user_id,
+        'company_id': company_id,
+        'company_name': company['name'],
+        'previous_score': previous_score,
+        'new_score': new_score,
+        'target_score': target_score,
+        'reward_earned': reward_earned,
+        'progress_percentage': progress_percentage,
+        'scans_until_reward': scans_until_reward
+    }
+    
+    if reward_earned:
+        response['reward_message'] = f"🎉 Congratulations! You earned a reward at {company['name']}!"
+    
+    return jsonify(response)
+
+# Legacy alias for backward compatibility - Admin Dashboard Scan
+@app.route('/api/rewards/scan', methods=['POST'])
+def admin_scan():
+    """Admin dashboard scan endpoint - requires admin authentication"""
+    # Check admin authentication
+    if 'company_id' not in session:
+        print("DEBUG: Admin scan - no session found")
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    company_id = session['company_id']
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+    
+    print(f"DEBUG: Admin scan - user_id={user_id}, company_id={company_id}")
+    
+    if not user_id:
+        return jsonify({'error': 'user_id required'}), 400
+    
+    # Use the same logic as mobile_scan but with admin session
+    conn = get_db()
+    
+    # Check if user exists
+    user = conn.execute('SELECT id FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Check if company exists
+    company = conn.execute('SELECT id, name FROM companies WHERE id = ?', (company_id,)).fetchone()
+    if not company:
+        conn.close()
+        return jsonify({'error': 'Company not found'}), 404
+    
+    # Check if user already has a reward record for this company
+    now_iso = datetime.now().isoformat()
+    existing = conn.execute(
+        'SELECT id, score, target_score FROM rewards WHERE user_id = ? AND company_id = ?',
+        (user_id, company_id)
+    ).fetchone()
+    
+    if existing:
+        previous_score = existing['score']
+        new_score = previous_score + 1
+        target_score = existing['target_score']
         
         conn.execute(
             'UPDATE rewards SET score = ?, last_scan_at = ?, updated_at = ? WHERE id = ?',

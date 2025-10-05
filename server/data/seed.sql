@@ -15,7 +15,7 @@ DELETE FROM companies;
 -- Generated: $2b$12$1KDSqkSLgz1pcDUjt30zKuVZT3vYGLG27H4mNP0MF/HLfp.RT5kD2
 INSERT INTO companies (id, name, description, login_email, password_hash, is_active, created_at)
 VALUES
-  (1, 'Coffee Shop',  'Local coffee shop loyalty program', 'p',  '$2b$12$1KDSqkSLgz1pcDUjt30zKuVZT3vYGLG27H4mNP0MF/HLfp.RT5kD2', 1, CURRENT_TIMESTAMP),
+  (1, 'Tim Hortons',  'Tim Hortons Tims Rewards loyalty program', 'p',  '$2b$12$1KDSqkSLgz1pcDUjt30zKuVZT3vYGLG27H4mNP0MF/HLfp.RT5kD2', 1, CURRENT_TIMESTAMP),
   (2, 'Pizza Palace', 'Pizza rewards program',              'pizza@login.local',   '$2b$12$1KDSqkSLgz1pcDUjt30zKuVZT3vYGLG27H4mNP0MF/HLfp.RT5kD2', 1, CURRENT_TIMESTAMP),
   (3, 'Book Haven',   'Book lover rewards',                 'books@login.local',   '$2b$12$1KDSqkSLgz1pcDUjt30zKuVZT3vYGLG27H4mNP0MF/HLfp.RT5kD2', 1, CURRENT_TIMESTAMP),
   (4, 'Gym Fitness',  'Gym membership points',              'gym@login.local',     '$2b$12$1KDSqkSLgz1pcDUjt30zKuVZT3vYGLG27H4mNP0MF/HLfp.RT5kD2', 1, CURRENT_TIMESTAMP),
@@ -38,14 +38,14 @@ INSERT INTO users (id, email, phone, full_name, created_at) VALUES
 
 -- ------------------------------------------------------
 -- Rewards (systematic pattern for easy visualization)
--- Company 1 (Coffee Shop): Users 1–4 scores 2,4,6,8
+-- Company 1 (Tim Hortons): Users 1–4 scores 2,4,6,8
 -- Company 2 (Pizza Palace): Users 2–5 scores 3,5,7,9
 -- Company 3 (Book Haven):   Users 3–6 scores 1,4,7,10
 -- Company 4 (Gym Fitness):  Users 4–7 scores 2,5,8,10
 -- Company 5 (Bakery Bliss): Users 5–8 scores 3,6,9,10
 -- ------------------------------------------------------
 INSERT INTO rewards (user_id, company_id, score, target_score, last_scan_at, created_at, updated_at) VALUES
-  -- Coffee Shop (company_id=1)
+  -- Tim Hortons (company_id=1)
   (1, 1, 2, 5, datetime('now', '-4 days'),  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   (2, 1, 4, 5, datetime('now', '-3 days'),  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   (3, 1, 6, 5, datetime('now', '-2 days'),  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
