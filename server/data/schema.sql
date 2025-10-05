@@ -1,13 +1,14 @@
 -- SQLite Schema (company-login only; users are customers)
 PRAGMA foreign_keys = ON;
 
--- Customers earning rewards (no login here)
+-- Customers earning rewards 
 CREATE TABLE IF NOT EXISTS users (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  email       TEXT UNIQUE NOT NULL,
-  phone       TEXT,
-  full_name   TEXT,
-  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  email         TEXT UNIQUE NOT NULL,
+  phone         TEXT,
+  full_name     TEXT,
+  password_hash TEXT,                        -- bcrypt hash for mobile app login
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Companies (each company has exactly one login)

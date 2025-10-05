@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { supabase } from '../lib/supabase';
+import { apiService } from '../lib/api';
 
 const AuthContext = createContext({});
 
@@ -8,6 +9,28 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Sync user with Flask backend after Supabase auth
+  const syncWithFlask = async (supabaseUser) => {
+    if (!supabaseUser) return;
+    
+    try {
+      const { data, error } = await apiService.request('/api/mobile/auth/sync-user', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: supabaseUser.email,
+          phone: supabaseUser.phone,
+          full_name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || '',
+        }),
+      });
+      
+      if (!error) {
+        console.log('User synced with Flask backend:', data);
+      }
+    } catch (error) {
+      console.error('Error syncing with Flask:', error);
+    }
+  };
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession()
@@ -15,6 +38,9 @@ export const AuthProvider = ({ children }) => {
         console.log('Session loaded:', !!session);
         setSession(session);
         setUser(session?.user ?? null);
+        if (session?.user) {
+          syncWithFlask(session.user);
+        }
         setLoading(false);
       })
       .catch((error) => {
@@ -27,6 +53,9 @@ export const AuthProvider = ({ children }) => {
       console.log('Auth state changed:', _event);
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        syncWithFlask(session.user);
+      }
       setLoading(false);
     });
 

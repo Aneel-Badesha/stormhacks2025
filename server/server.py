@@ -58,11 +58,12 @@ def init_db():
     conn.close()
     print("✅ Database initialized")
 
-# Mobile Auth
+# Mobile Auth - Works with Supabase
+# Users authenticate via Supabase, then we link them by email in our DB
 
-@app.route('/api/mobile/auth/register', methods=['POST'])
-def mobile_register():
-    """Register a new user"""
+@app.route('/api/mobile/auth/sync-user', methods=['POST'])
+def sync_user():
+    """Sync/create user from Supabase auth in our local DB"""
     data = request.get_json(silent=True) or {}
     email = (data.get('email') or '').strip().lower()
     phone = (data.get('phone') or '').strip()
@@ -74,46 +75,130 @@ def mobile_register():
     conn = get_db()
     
     # Check if user already exists
-    existing = conn.execute('SELECT id FROM users WHERE email = ?', (email,)).fetchone()
-    if existing:
-        conn.close()
-        return jsonify({'error': 'User already exists', 'user_id': existing['id']}), 409
+    existing = conn.execute('SELECT id, email, phone, full_name FROM users WHERE email = ?', (email,)).fetchone()
     
-    # Create new user
-    cursor = conn.execute(
-        'INSERT INTO users (email, phone, full_name) VALUES (?, ?, ?)',
-        (email, phone, full_name)
-    )
-    user_id = cursor.lastrowid
-    conn.commit()
+    if existing:
+        # User exists, just return their info
+        user_id = existing['id']
+        user_data = {
+            'id': existing['id'],
+            'email': existing['email'],
+            'phone': existing['phone'],
+            'full_name': existing['full_name']
+        }
+    else:
+        # Create new user
+        cursor = conn.execute(
+            'INSERT INTO users (email, phone, full_name) VALUES (?, ?, ?)',
+            (email, phone, full_name)
+        )
+        user_id = cursor.lastrowid
+        conn.commit()
+        user_data = {
+            'id': user_id,
+            'email': email,
+            'phone': phone,
+            'full_name': full_name
+        }
+    
     conn.close()
+    
+    # Set session
+    session.clear()
+    session['user_id'] = user_id
+    session['user_email'] = email
+    session.permanent = True
     
     return jsonify({
         'success': True,
-        'user_id': user_id,
-        'email': email,
-        'full_name': full_name
+        'user': user_data
+    })
+def mobile_register():
+    """Register a new user"""
+    data = request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password', '')
+    phone = (data.get('phone') or '').strip()
+    full_name = (data.get('full_name') or '').strip()
+    
+    if not email:
+        return jsonify({'error': 'Email required'}), 400
+    
+    if not password or len(password) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters'}), 400
+    
+    conn = get_db()
+    
+    # Check if user already exists
+    existing = conn.execute('SELECT id FROM users WHERE email = ?', (email,)).fetchone()
+    if existing:
+        conn.close()
+        return jsonify({'error': 'User already exists'}), 409
+    
+    # Hash the password
+    password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    # Create new user
+    cursor = conn.execute(
+        'INSERT INTO users (email, phone, full_name, password_hash) VALUES (?, ?, ?, ?)',
+        (email, phone, full_name, password_hash)
+    )
+    user_id = cursor.lastrowid
+    conn.commit()
+    
+    # Get the created user
+    user = conn.execute(
+        'SELECT id, email, phone, full_name FROM users WHERE id = ?',
+        (user_id,)
+    ).fetchone()
+    conn.close()
+    
+    # Set session
+    session.clear()
+    session['user_id'] = user_id
+    session['user_email'] = email
+    session.permanent = True
+    
+    return jsonify({
+        'success': True,
+        'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'phone': user['phone'],
+            'full_name': user['full_name']
+        }
     }), 201
 
 # 
 @app.route('/api/mobile/auth/login', methods=['POST'])
 def mobile_login():
-    """Login existing user (simple email-based)"""
+    """Login existing user with email and password"""
     data = request.get_json(silent=True) or {}
     email = (data.get('email') or '').strip().lower()
+    password = data.get('password', '')
     
     if not email:
         return jsonify({'error': 'Email required'}), 400
     
+    if not password:
+        return jsonify({'error': 'Password required'}), 400
+    
     conn = get_db()
     user = conn.execute(
-        'SELECT id, email, phone, full_name FROM users WHERE email = ?',
+        'SELECT id, email, phone, full_name, password_hash FROM users WHERE email = ?',
         (email,)
     ).fetchone()
     conn.close()
     
     if not user:
-        return jsonify({'error': 'User not found'}), 404
+        return jsonify({'error': 'Invalid email or password'}), 401
+    
+    # Check password
+    if not user['password_hash']:
+        return jsonify({'error': 'Please register with a password'}), 401
+    
+    if not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+        return jsonify({'error': 'Invalid email or password'}), 401
 
     # Set mobile session
     session.clear()
@@ -772,4 +857,4 @@ if __name__ == '__main__':
     if not os.path.exists(DB_PATH):
         init_db()
     print("Starting app")
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    app.run(debug=True, host="172.16.143.239", port=5000)

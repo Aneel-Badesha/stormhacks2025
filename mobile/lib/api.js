@@ -1,7 +1,11 @@
 // API Configuration
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || (__DEV__ 
-  ? 'http://localhost:5000' // Development fallback
+  ? 'http://172.16.143.239:5000' // Development fallback
   : 'https://your-production-domain.com'); // Production fallback
+
+console.log('📡 API Base URL:', API_BASE_URL);
+console.log('🔧 Environment:', __DEV__ ? 'Development' : 'Production');
+console.log('🌍 EXPO_PUBLIC_API_BASE_URL:', process.env.EXPO_PUBLIC_API_BASE_URL);
 
 export const API_ENDPOINTS = {
   // Authentication
@@ -32,6 +36,8 @@ class ApiService {
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     
+    console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
+    
     const config = {
       headers: {
         'Content-Type': 'application/json',
@@ -42,7 +48,16 @@ class ApiService {
     };
 
     try {
-      const response = await fetch(url, config);
+      // Add timeout
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout - cannot reach server')), 10000)
+      );
+      
+      const fetchPromise = fetch(url, config);
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
+      
+      console.log(`✅ Response status: ${response.status}`);
+      
       const data = await response.json();
 
       if (!response.ok) {
@@ -51,7 +66,8 @@ class ApiService {
 
       return { data, error: null };
     } catch (error) {
-      console.error('API request failed:', error);
+      console.error('❌ API request failed:', error.message);
+      console.error('URL was:', url);
       return { data: null, error: error.message };
     }
   }

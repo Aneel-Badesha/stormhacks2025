@@ -24,17 +24,18 @@ VALUES
 -- ----------------------------
 -- Users (10 demo customers)
 -- ----------------------------
-INSERT INTO users (id, email, phone, full_name, created_at) VALUES
-  (1,  'alice@example.com',    '+1111111111', 'Alice Anderson',   CURRENT_TIMESTAMP),
-  (2,  'bob@example.com',      '+1222222222', 'Bob Baker',        CURRENT_TIMESTAMP),
-  (3,  'charlie@example.com',  '+1333333333', 'Charlie Chen',     CURRENT_TIMESTAMP),
-  (4,  'diana@example.com',    '+1444444444', 'Diana Davis',      CURRENT_TIMESTAMP),
-  (5,  'evan@example.com',     '+1555555555', 'Evan Evans',       CURRENT_TIMESTAMP),
-  (6,  'fiona@example.com',    '+1666666666', 'Fiona Foster',     CURRENT_TIMESTAMP),
-  (7,  'george@example.com',   '+1777777777', 'George Garcia',    CURRENT_TIMESTAMP),
-  (8,  'hannah@example.com',   '+1888888888', 'Hannah Harris',    CURRENT_TIMESTAMP),
-  (9,  'ian@example.com',      '+1999999999', 'Ian Ingram',       CURRENT_TIMESTAMP),
-  (10, 'julia@example.com',    '+1000000000', 'Julia Johnson',    CURRENT_TIMESTAMP);
+INSERT INTO users (id, email, phone, full_name, password_hash, created_at) VALUES
+  (1,  'alice@example.com',    '+1111111111', 'Alice Anderson',   NULL, CURRENT_TIMESTAMP),
+  (2,  'bob@example.com',      '+1222222222', 'Bob Baker',        NULL, CURRENT_TIMESTAMP),
+  (3,  'charlie@example.com',  '+1333333333', 'Charlie Chen',     NULL, CURRENT_TIMESTAMP),
+  (4,  'diana@example.com',    '+1444444444', 'Diana Davis',      NULL, CURRENT_TIMESTAMP),
+  (5,  'evan@example.com',     '+1555555555', 'Evan Evans',       NULL, CURRENT_TIMESTAMP),
+  (6,  'fiona@example.com',    '+1666666666', 'Fiona Foster',     NULL, CURRENT_TIMESTAMP),
+  (7,  'george@example.com',   '+1777777777', 'George Garcia',    NULL, CURRENT_TIMESTAMP),
+  (8,  'hannah@example.com',   '+1888888888', 'Hannah Harris',    NULL, CURRENT_TIMESTAMP),
+  (9,  'ian@example.com',      '+1999999999', 'Ian Ingram',       NULL, CURRENT_TIMESTAMP),
+  (10, 'julia@example.com',    '+1000000000', 'Julia Johnson',    NULL, CURRENT_TIMESTAMP),
+  (11, 'abadesha@outlook.com', '6048806014',  'Aneel',            '$2b$12$5ygQnYdROUTYvIMRrQzvB.Z113m64iVAhulrbPoSsg9tHsf9rRgz6', CURRENT_TIMESTAMP);
 
 -- ------------------------------------------------------
 -- Rewards (systematic pattern for easy visualization)

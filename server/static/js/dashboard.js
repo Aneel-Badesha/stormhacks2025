@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'http://172.16.143.239:5000';
 let currentCompanyId = null;
 let currentCompanyName = '';
 let allUsers = [];
