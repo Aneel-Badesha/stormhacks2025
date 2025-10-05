@@ -45,36 +45,206 @@ def init_db():
     conn.close()
     print("✅ Database initialized")
 
-@app.route('/api/programs', methods=['GET'])
-def get_programs():
-    """Return all company programs (for app usage)"""
+# Mobile Auth
+
+@app.route('/api/mobile/auth/register', methods=['POST'])
+def mobile_register():
+    """Register a new user"""
+    data = request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    phone = (data.get('phone') or '').strip()
+    full_name = (data.get('full_name') or '').strip()
+    
+    if not email:
+        return jsonify({'error': 'Email required'}), 400
+    
     conn = get_db()
-    rows = conn.execute("""
-        SELECT
-            c.id,
-            c.name,
-            c.description AS companyDescription,
-            c.category,
-            c.color,
-            p.max_punches AS maxPunches,
-            p.description AS programDescription
-        FROM companies c
-        LEFT JOIN programs p ON p.company_id = c.id
-    """).fetchall()
+    
+    # Check if user already exists
+    existing = conn.execute('SELECT id FROM users WHERE email = ?', (email,)).fetchone()
+    if existing:
+        conn.close()
+        return jsonify({'error': 'User already exists', 'user_id': existing['id']}), 409
+    
+    # Create new user
+    cursor = conn.execute(
+        'INSERT INTO users (email, phone, full_name) VALUES (?, ?, ?)',
+        (email, phone, full_name)
+    )
+    user_id = cursor.lastrowid
+    conn.commit()
     conn.close()
-    # Fallbacks for missing columns
-    programs = []
-    for row in rows:
-        programs.append({
-            'id': str(row['id']),
-            'name': row['name'],
-            'category': row.get('category', 'Other'),
-            'color': row.get('color', '#888'),
-            'maxPunches': row.get('maxPunches', 10),
-            'companyDescription': row.get('companyDescription', ''),
-            'programDescription': row.get('programDescription', ''),
-        })
-    return jsonify(programs)
+    
+    return jsonify({
+        'success': True,
+        'user_id': user_id,
+        'email': email,
+        'full_name': full_name
+    }), 201
+
+# 
+@app.route('/api/mobile/auth/login', methods=['POST'])
+def mobile_login():
+    """Login existing user (simple email-based)"""
+    data = request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    
+    if not email:
+        return jsonify({'error': 'Email required'}), 400
+    
+    conn = get_db()
+    user = conn.execute(
+        'SELECT id, email, phone, full_name FROM users WHERE email = ?',
+        (email,)
+    ).fetchone()
+    conn.close()
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    return jsonify({
+        'success': True,
+        'user_id': user['id'],
+        'email': user['email'],
+        'phone': user['phone'],
+        'full_name': user['full_name']
+    })
+
+@app.route('/api/mobile/companies', methods=['GET'])
+def mobile_companies():
+    """Get all active companies"""
+    conn = get_db()
+    companies = conn.execute(
+        'SELECT id, name, description FROM companies WHERE is_active = 1'
+    ).fetchall()
+    conn.close()
+    
+    return jsonify([{
+        'id': c['id'],
+        'name': c['name'],
+        'description': c['description'] or ''
+    } for c in companies])
+
+@app.route('/api/mobile/scan', methods=['POST'])
+def mobile_scan():
+    """
+    PRIMARY NFC SCAN ENDPOINT
+    Called when user scans NFC tag at a business
+    """
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+    company_id = data.get('company_id')
+    
+    if not user_id:
+        return jsonify({'error': 'user_id required'}), 400
+    if not company_id:
+        return jsonify({'error': 'company_id required'}), 400
+    
+    conn = get_db()
+    
+    # Verify user exists
+    user = conn.execute('SELECT id FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Verify company exists and is active
+    company = conn.execute(
+        'SELECT id, name FROM companies WHERE id = ? AND is_active = 1',
+        (company_id,)
+    ).fetchone()
+    if not company:
+        conn.close()
+        return jsonify({'error': 'Company not found or inactive'}), 404
+    
+    # Get current reward status
+    existing = conn.execute(
+        'SELECT id, score, target_score FROM rewards WHERE user_id = ? AND company_id = ?',
+        (user_id, company_id)
+    ).fetchone()
+    
+    now_iso = datetime.now().isoformat()
+    
+    if existing:
+        previous_score = int(existing['score'] or 0)
+        target_score = int(existing['target_score'] or 10)
+        new_score = previous_score + 1
+        
+        conn.execute(
+            'UPDATE rewards SET score = ?, last_scan_at = ?, updated_at = ? WHERE id = ?',
+            (new_score, now_iso, now_iso, existing['id'])
+        )
+    else:
+        previous_score = 0
+        new_score = 1
+        target_score = 10
+        
+        conn.execute(
+            'INSERT INTO rewards (user_id, company_id, score, target_score, last_scan_at) '
+            'VALUES (?, ?, ?, ?, ?)',
+            (user_id, company_id, new_score, target_score, now_iso)
+        )
+    
+    conn.commit()
+    conn.close()
+    
+    reward_earned = new_score >= target_score
+    progress_percentage = int((new_score / target_score) * 100)
+    scans_until_reward = max(0, target_score - new_score)
+    
+    response = {
+        'success': True,
+        'user_id': user_id,
+        'company_id': company_id,
+        'company_name': company['name'],
+        'previous_score': previous_score,
+        'new_score': new_score,
+        'target_score': target_score,
+        'reward_earned': reward_earned,
+        'progress_percentage': progress_percentage,
+        'scans_until_reward': scans_until_reward
+    }
+    
+    if reward_earned:
+        response['reward_message'] = f"🎉 Congratulations! You earned a reward at {company['name']}!"
+    
+    return jsonify(response)
+
+@app.route('/api/mobile/rewards/<int:user_id>', methods=['GET'])
+def mobile_user_rewards(user_id):
+    """Get all rewards for a user"""
+    conn = get_db()
+    
+    rewards = conn.execute('''
+        SELECT 
+            r.company_id,
+            c.name as company_name,
+            r.score,
+            r.target_score,
+            r.last_scan_at,
+            r.created_at
+        FROM rewards r
+        JOIN companies c ON r.company_id = c.id
+        WHERE r.user_id = ?
+        ORDER BY r.last_scan_at DESC
+    ''', (user_id,)).fetchall()
+    
+    conn.close()
+    
+    return jsonify({
+        'user_id': user_id,
+        'rewards': [{
+            'company_id': r['company_id'],
+            'company_name': r['company_name'],
+            'score': r['score'],
+            'target_score': r['target_score'],
+            'progress_percentage': int((r['score'] / r['target_score']) * 100),
+            'reward_earned': r['score'] >= r['target_score'],
+            'last_scan_at': r['last_scan_at']
+        } for r in rewards]
+    })
+
+# REMOVED: /api/programs - duplicate of /api/mobile/companies (use that instead)
 
 # ============================================
 # Authentication Routes (email-only)
@@ -236,45 +406,7 @@ def get_users():
     
     return jsonify([dict(u) for u in users])
 
-@app.route('/api/rewards/scan', methods=['POST'])
-def add_scan():
-    """Add a scan (increment score)"""
-    auth_error = require_auth()
-    if auth_error:
-        return auth_error
-    
-    data = request.get_json(silent=True) or {}
-    user_id = data.get('user_id')
-    company_id = session['company_id']
-    
-    if not user_id:
-        return jsonify({'error': 'user_id required'}), 400
-    
-    conn = get_db()
-    existing = conn.execute(
-        'SELECT id, score, target_score FROM rewards WHERE user_id = ? AND company_id = ?',
-        (user_id, company_id)
-    ).fetchone()
-    
-    if existing:
-        new_score = existing['score'] + 1
-        now_iso = datetime.now().isoformat()
-        conn.execute(
-            'UPDATE rewards SET score = ?, last_scan_at = ?, updated_at = ? WHERE id = ?',
-            (new_score, now_iso, now_iso, existing['id'])
-        )
-        reward_earned = new_score >= existing['target_score']
-    else:
-        conn.execute(
-            'INSERT INTO rewards (user_id, company_id, score, last_scan_at) VALUES (?, ?, 1, ?)',
-            (user_id, company_id, datetime.now().isoformat())
-        )
-        reward_earned = False
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'reward_earned': reward_earned})
+# REMOVED: Duplicate of /api/rewards/increment - use that instead for admin scans
 
 @app.route('/api/rewards/reset', methods=['POST'])
 def reset_reward():
