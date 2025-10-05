@@ -10,29 +10,21 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
+import ProgramDetailsScreen from './ProgramDetailsScreen';
+import { ALL_PROGRAMS } from '../data/mockData';
 
-// Mock data for rewards programs
-const MOCK_PROGRAMS = [
-  { id: '1', name: 'Starbucks Rewards', category: 'Coffee' },
-  { id: '2', name: 'Tim Hortons', category: 'Coffee' },
-  { id: '3', name: 'McDonald\'s', category: 'Fast Food' },
-  { id: '4', name: 'Subway MyWay Rewards', category: 'Fast Food' },
-  { id: '5', name: 'Sephora Beauty Insider', category: 'Beauty' },
-  { id: '6', name: 'Shoppers Optimum', category: 'Pharmacy' },
-  { id: '7', name: 'Air Miles', category: 'General' },
-  { id: '8', name: 'PC Optimum', category: 'Grocery' },
-];
-
-export default function BrowseScreen({ visible, onClose }) {
+export default function BrowseScreen({ visible, onClose, userCards, onAddCard }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredPrograms, setFilteredPrograms] = useState(MOCK_PROGRAMS);
+  const [filteredPrograms, setFilteredPrograms] = useState(ALL_PROGRAMS);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [selectedProgram, setSelectedProgram] = useState(null);
 
   const handleSearch = (text) => {
     setSearchQuery(text);
     if (text.trim() === '') {
-      setFilteredPrograms(MOCK_PROGRAMS);
+      setFilteredPrograms(ALL_PROGRAMS);
     } else {
-      const filtered = MOCK_PROGRAMS.filter((program) =>
+      const filtered = ALL_PROGRAMS.filter((program) =>
         program.name.toLowerCase().includes(text.toLowerCase()) ||
         program.category.toLowerCase().includes(text.toLowerCase())
       );
@@ -40,14 +32,32 @@ export default function BrowseScreen({ visible, onClose }) {
     }
   };
 
+  const isCardAdded = (programId) => {
+    return userCards?.some(card => card.id === programId);
+  };
+
   const renderProgram = ({ item }) => (
-    <TouchableOpacity style={styles.programCard}>
+    <TouchableOpacity 
+      style={styles.programCard}
+      onPress={() => {
+        setSelectedProgram(item);
+        setDetailsVisible(true);
+      }}
+    >
       <View>
         <Text style={styles.programName}>{item.name}</Text>
         <Text style={styles.programCategory}>{item.category}</Text>
       </View>
-      <TouchableOpacity style={styles.addButton}>
-        <Text style={styles.addButtonText}>+</Text>
+      <TouchableOpacity 
+        style={[styles.addButton, isCardAdded(item.id) && styles.addButtonDisabled]}
+        onPress={(e) => {
+          e.stopPropagation();
+          if (!isCardAdded(item.id)) {
+            onAddCard?.(item);
+          }
+        }}
+      >
+        <Text style={styles.addButtonText}>{isCardAdded(item.id) ? '✓' : '+'}</Text>
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -86,6 +96,16 @@ export default function BrowseScreen({ visible, onClose }) {
           }
         />
       </View>
+      <ProgramDetailsScreen
+        visible={detailsVisible}
+        program={selectedProgram}
+        onClose={() => setDetailsVisible(false)}
+        onAddCard={(program) => {
+          onAddCard?.(program);
+          setDetailsVisible(false);
+        }}
+        isAdded={selectedProgram ? isCardAdded(selectedProgram.id) : false}
+      />
     </Modal>
   );
 }
@@ -175,6 +195,10 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontFamily: FONTS.regular,
     fontWeight: FONTS.weights.bold,
+  },
+  addButtonDisabled: {
+    backgroundColor: COLORS.cardBackground,
+    opacity: 0.6,
   },
   emptyText: {
     textAlign: 'center',

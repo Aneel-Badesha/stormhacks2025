@@ -47,9 +47,6 @@ export const AuthProvider = ({ children }) => {
         },
       });
       
-      console.log("Signup data:", data);
-      console.log("Phone number:", phone);
-      
       if (error) throw error;
 
       // Note: User profile will be created automatically by database trigger

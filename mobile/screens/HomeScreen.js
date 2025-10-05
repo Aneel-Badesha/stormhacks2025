@@ -1,133 +1,49 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING } from '../constants/theme';
 import LoyaltyCardCarousel from '../components/LoyaltyCardCarousel';
+import { INITIAL_USER_CARDS } from '../data/mockData';
 
-export default function HomeScreen() {
-  // Mock data for loyalty cards with more details
-  const loyaltyCards = [
-    {
-      id: '1',
-      name: 'Starbucks Rewards',
-      points: '450',
-      color: '#00704A',
-      progress: 75,
-      visits: 15,
-      rewards: 4,
-      saved: '$62',
-      memberSince: 'Jan 2023',
-      cardId: '****5678',
-    },
-    {
-      id: '2',
-      name: 'Tim Hortons',
-      points: '230',
-      color: '#7a2325',
-      progress: 45,
-      visits: 8,
-      rewards: 2,
-      saved: '$28',
-      memberSince: 'Mar 2023',
-      cardId: '****9012',
-    },
-    {
-      id: '3',
-      name: 'Shoppers Optimum',
-      points: '12,450',
-      color: '#E31837',
-      progress: 90,
-      visits: 24,
-      rewards: 7,
-      saved: '$145',
-      memberSince: 'Nov 2022',
-      cardId: '****3456',
-    },
-    {
-      id: '4',
-      name: 'Aeroplan',
-      points: '8,920',
-      color: '#00205B',
-      progress: 65,
-      visits: 18,
-      rewards: 5,
-      saved: '$210',
-      memberSince: 'Aug 2022',
-      cardId: '****7890',
-    },
-    {
-      id: '5',
-      name: 'Best Buy Rewards',
-      points: '1,250',
-      color: '#0046BE',
-      progress: 40,
-      visits: 6,
-      rewards: 1,
-      saved: '$35',
-      memberSince: 'Feb 2024',
-      cardId: '****2345',
-    },
-    {
-      id: '6',
-      name: 'Sephora Beauty Insider',
-      points: '3,400',
-      color: '#000000',
-      progress: 80,
-      visits: 22,
-      rewards: 6,
-      saved: '$98',
-      memberSince: 'May 2023',
-      cardId: '****6789',
-    },
-    {
-      id: '7',
-      name: 'Petro-Points',
-      points: '5,670',
-      color: '#C8102E',
-      progress: 55,
-      visits: 31,
-      rewards: 8,
-      saved: '$156',
-      memberSince: 'Dec 2022',
-      cardId: '****4567',
-    },
-    {
-      id: '8',
-      name: 'Scene+',
-      points: '2,890',
-      color: '#E4002B',
-      progress: 70,
-      visits: 14,
-      rewards: 4,
-      saved: '$72',
-      memberSince: 'Apr 2023',
-      cardId: '****8901',
-    },
-    {
-      id: '9',
-      name: 'Costco Membership',
-      points: '890',
-      color: '#0066B2',
-      progress: 35,
-      visits: 9,
-      rewards: 2,
-      saved: '$124',
-      memberSince: 'Jan 2024',
-      cardId: '****3210',
-    },
-    {
-      id: '10',
-      name: 'Indigo Plum Rewards',
-      points: '4,120',
-      color: '#6B2D5C',
-      progress: 85,
-      visits: 19,
-      rewards: 5,
-      saved: '$89',
-      memberSince: 'Oct 2022',
-      cardId: '****5432',
-    },
-  ];
+export default function HomeScreen({ userCards, setUserCards }) {
+  // Use prop or fallback to initial data
+  const loyaltyCards = userCards || INITIAL_USER_CARDS;
+
+  const handleRedeem = (card) => {
+    const cashValue = card.cash_per_redeem || 5;
+    
+    Alert.alert(
+      '🎁 Redeem Reward',
+      `Redeem your reward from ${card.name}?\n\nValue: $${cashValue}\nThis will reset your punch card to 0.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Redeem',
+          style: 'default',
+          onPress: () => {
+            // Reset punches to 0, increment rewards, and add to saved amount
+            const updatedCards = userCards.map(c => {
+              if (c.id === card.id) {
+                // Parse current saved amount and add new value
+                const currentSaved = parseFloat(c.saved?.replace('$', '') || '0');
+                const newSaved = currentSaved + cashValue;
+                
+                return {
+                  ...c,
+                  punches: 0,
+                  rewards: (c.rewards || 0) + 1,
+                  saved: `$${newSaved.toFixed(0)}`,
+                };
+              }
+              return c;
+            });
+            setUserCards(updatedCards);
+            Alert.alert('Success!', `Reward redeemed from ${card.name}! 🎉\n\nYou saved $${cashValue}!`);
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -136,7 +52,7 @@ export default function HomeScreen() {
         <Text style={styles.subtitle}>Swipe to browse your loyalty programs</Text>
 
         {loyaltyCards.length > 0 ? (
-          <LoyaltyCardCarousel cards={loyaltyCards} />
+          <LoyaltyCardCarousel cards={loyaltyCards} onRedeem={handleRedeem} />
         ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No loyalty cards yet</Text>
