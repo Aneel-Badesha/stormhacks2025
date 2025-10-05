@@ -1,16 +1,40 @@
 import React, {useEffect, useState, useRef} from 'react';
 import {View, Text, Button, Platform, ScrollView, StyleSheet, Alert} from 'react-native';
-import NfcManager, {NfcTech, Ndef} from 'react-native-nfc-manager';
+import NfcManager, {Ndef} from 'react-native-nfc-manager';
 
 // initialize NFC on app start
-function initNFC() {
-  NfcManager.start()
-    .then(() => {
-      // started
-    })
-    .catch(err => {
-      console.warn('NfcManager start failed', err);
-    });
+async function initNFC(setSupported) {
+  // Defensive: the native module may not be present (Expo Go). Detect availability
+  try {
+    if (!NfcManager || typeof NfcManager.start !== 'function') {
+      setSupported(false);
+      return;
+    }
+
+    // some implementations expose isSupported()
+    let supported = true;
+    try {
+      if (typeof NfcManager.isSupported === 'function') {
+        const s = await NfcManager.isSupported();
+        supported = !!s;
+      }
+    } catch (e) {
+      // ignore and assume supported; start() may still fail which we catch below
+    }
+
+    setSupported(Boolean(supported));
+
+    if (supported) {
+      try {
+        await NfcManager.start();
+      } catch (err) {
+        console.warn('NfcManager start failed', err);
+      }
+    }
+  } catch (err) {
+    console.warn('initNFC check failed', err);
+    setSupported(false);
+  }
 }
 
 function parseNdefMessage(tag) {
@@ -46,10 +70,11 @@ function parseNdefMessage(tag) {
 export default function NFCScanner() {
   const [scanning, setScanning] = useState(false);
   const [tag, setTag] = useState(null);
+  const [nfcAvailable, setNfcAvailable] = useState(null); // null = unknown, false = not available
   const registeredRef = useRef(false);
 
   useEffect(() => {
-    initNFC();
+    initNFC(setNfcAvailable);
     return () => {
       stopScan();
     };
@@ -58,11 +83,19 @@ export default function NFCScanner() {
 
   async function startScan() {
     if (scanning) return;
+    if (nfcAvailable === false) {
+      Alert.alert('NFC Unavailable', 'NFC native module is not available in this runtime (Expo Go). Install the dev client or run the APK to test NFC.');
+      return;
+    }
     setTag(null);
     setScanning(true);
 
     try {
       // registerTagEvent works on Android & iOS (iOS with proper entitlements)
+      if (!NfcManager || typeof NfcManager.registerTagEvent !== 'function') {
+        throw new Error('registerTagEvent not available');
+      }
+
       await NfcManager.registerTagEvent(tag => {
         setTag(tag);
         // auto-stop after first tag
@@ -93,9 +126,15 @@ export default function NFCScanner() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>NFC Scanner</Text>
       <Text style={styles.status}>Platform: {Platform.OS}</Text>
-
+      {nfcAvailable === false && (
+        <Text style={[styles.status, {color: 'crimson'}]}>NFC unavailable in this runtime (Expo Go). Install the dev client or use the APK to test NFC.</Text>
+      )}
       <View style={styles.buttons}>
-        <Button title={scanning ? 'Scanning... (Tap to stop)' : 'Start scan'} onPress={() => (scanning ? stopScan() : startScan())} />
+        <Button
+          title={scanning ? 'Scanning... (Tap to stop)' : 'Start scan'}
+          onPress={() => (scanning ? stopScan() : startScan())}
+          disabled={nfcAvailable === false}
+        />
       </View>
 
       <View style={styles.tagContainer}>
