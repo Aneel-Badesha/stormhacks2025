@@ -378,15 +378,24 @@
     };
 
     // Simulate a random scan
-    window.simulateScan = async () => {
-      if (allUsers.length === 0) {
-        alert('No users to scan!');
-        return;
-      }
-      
-      const randomUser = allUsers[Math.floor(Math.random() * allUsers.length)];
-      await addScan(randomUser.user_id);
-    };
+window.simulateScan = async () => {
+  if (!Array.isArray(allUsers) || allUsers.length === 0) {
+    alert('No users to scan!');
+    return;
+  }
+
+  const randomUser = allUsers[Math.floor(Math.random() * allUsers.length)];
+  const userId = randomUser.id ?? randomUser.user_id; // fallback just in case
+
+  if (!userId) {
+    console.error('No user id on row:', randomUser);
+    alert('Could not determine user id.');
+    return;
+  }
+
+  await addScan(userId); // addScan already calls loadData()
+};
+
 
     // Initialize on page load
     init();
