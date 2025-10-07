@@ -1,4 +1,7 @@
-# Punchly: Punch, Earn, Repeat
+<img width="2400" height="1350" alt="image" src="https://github.com/user-attachments/assets/2a27adbb-606c-400c-b697-7d2933b522a9" />
+
+
+# Punchly: Punch in, Get rewarded. 
 
 **Digital punch-card loyalty rewards platform for small businesses** | Built for StormHacks 2025 
 
@@ -9,12 +12,8 @@ Replace physical punch cards with NFC-powered digital loyalty. Customers tap to 
 - [Executive Summary](#executive-summary)
 - [The Problem](#the-problem)
 - [Our Solution](#our-solution)
-- [Quick Start](#quick-start)
-- [Repository Structure](#repository-structure)
 - [Technology Stack](#technology-stack)
 - [Features](#features)
-
-
 
 ## Executive Summary
 
@@ -53,38 +52,6 @@ Replace the entire physical loyalty stack with one digital platform:
 
 ---
 
-## Quick Start
-
-### Prerequisites
-
-- Python 3.7+
-- Node.js 18+
-- Expo CLI
-- SQLite3
-
-### 1. Start the Backend Server
-See full documentation: **[Server README](./server/README.md)**
-
-### 2. Start the Mobile App
-See full documentation: **[Mobile README](./mobile/README.md)**
-
-### 3. Test the Flow
-1. **Login to admin dashboard:**
-2. **Open mobile app** on simulator or device
-3. **Scan NFC tag** (or simulate with deep link)
-4. **View analytics** in admin dashboard
-
-
-## Repository Structure
-
-```
-stormhacks2025/
-├── README.md  # this file
-├── mobile/    # React Native mobile app
-│
-└── server/    # Flask backend API, frontend admin dashboard
-```
-
 ## Technology Stack
 
 ### Mobile App
@@ -92,7 +59,6 @@ stormhacks2025/
 - **Navigation:** React Navigation
 - **UI Library:** React Native Paper
 - **Auth:** Supabase
-- **Storage:** AsyncStorage
 
 ### Backend Server
 - **Framework:** Flask 3.0.0
